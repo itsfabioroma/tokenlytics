@@ -115,7 +115,7 @@
 <body>
   <header>
     <h1><span>Token</span>lytics</h1>
-    <div class="meta"><span class="refresh-dot"></span>Auto-refresh 30s &middot; <span id="lastUpdate">loading...</span></div>
+    <div class="meta"><span class="refresh-dot"></span>Auto-refresh 10s &middot; <span id="lastUpdate">loading...</span></div>
   </header>
 
   <!-- stat cards -->
@@ -156,33 +156,6 @@
       <h3>Estimated Cost by Model</h3>
       <canvas id="costChart"></canvas>
     </div>
-  </div>
-
-  <!-- real-time OTel section -->
-  <div class="table-card" id="otelSection" style="display:none">
-    <h3><span class="refresh-dot"></span>Live Session (via OpenTelemetry)</h3>
-    <div class="stats" style="margin-top:12px">
-      <div class="stat-card accent">
-        <div class="label">Session Cost</div>
-        <div class="value" id="otelCost">--</div>
-      </div>
-      <div class="stat-card blue">
-        <div class="label">Output Tokens</div>
-        <div class="value" id="otelOutput">--</div>
-        <div class="sub" id="otelInput">-- input</div>
-      </div>
-      <div class="stat-card green">
-        <div class="label">Cache Read</div>
-        <div class="value" id="otelCacheRead">--</div>
-        <div class="sub" id="otelCacheCreation">-- cache creation</div>
-      </div>
-      <div class="stat-card orange">
-        <div class="label">Recent Events</div>
-        <div class="value" id="otelEventCount">--</div>
-        <div class="sub" id="otelSessions">-- sessions</div>
-      </div>
-    </div>
-    <div id="otelEventLog" style="margin-top:12px; max-height:200px; overflow-y:auto; font-size:12px; color:var(--muted); font-family:monospace;"></div>
   </div>
 
   <!-- project table -->
@@ -349,40 +322,9 @@
       }
     }
 
-    // poll OTel real-time data
-    async function fetchOtel() {
-      try {
-        const res = await fetch('/api/otel');
-        const data = await res.json();
-
-        // show section only when OTel data exists
-        if (!data.lastUpdated) return;
-        document.getElementById('otelSection').style.display = 'block';
-
-        document.getElementById('otelCost').textContent = '$' + data.cost.toLocaleString();
-        document.getElementById('otelOutput').textContent = fmtExact(data.tokens.output);
-        document.getElementById('otelInput').textContent = fmtExact(data.tokens.input) + ' input';
-        document.getElementById('otelCacheRead').textContent = fmtExact(data.tokens.cacheRead);
-        document.getElementById('otelCacheCreation').textContent = fmtExact(data.tokens.cacheCreation) + ' cache creation';
-        document.getElementById('otelEventCount').textContent = fmtExact(data.recentEvents.length);
-        document.getElementById('otelSessions').textContent = data.sessionCount + ' sessions';
-
-        // event log (last 10)
-        const events = data.recentEvents.slice(-10).reverse();
-        document.getElementById('otelEventLog').innerHTML = events.map(e => {
-          const time = new Date(e.timestamp).toLocaleTimeString();
-          const model = e.attributes?.model || '';
-          const tokens = e.attributes?.input_tokens ? ` (${e.attributes.input_tokens}in/${e.attributes.output_tokens}out)` : '';
-          return `<div style="padding:2px 0;border-bottom:1px solid var(--border)">${time} <span style="color:var(--accent)">${e.name}</span> ${model}${tokens}</div>`;
-        }).join('');
-      } catch {}
-    }
-
-    // initial load + auto-refresh
+    // initial load + auto-refresh every 10s
     fetchAndRender();
-    fetchOtel();
-    setInterval(fetchAndRender, 30_000);
-    setInterval(fetchOtel, 5_000);
+    setInterval(fetchAndRender, 10_000);
   </script>
 </body>
 </html>
