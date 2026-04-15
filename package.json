@@ -1,7 +1,7 @@
 {
-  "name": "claude-token-tracker",
+  "name": "token-factory",
   "version": "0.1.0",
-  "description": "Real-time token usage tracker for Claude Code subscriptions",
+  "description": "Token Factory — KPI dashboard for Claude Code usage",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
