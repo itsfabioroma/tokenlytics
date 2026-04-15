@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Claude Token Tracker</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    :root {
+      --bg: #0a0a0f;
+      --surface: #12121a;
+      --border: #1e1e2e;
+      --text: #e0e0e8;
+      --muted: #6b6b80;
+      --accent: #c084fc;
+      --accent2: #38bdf8;
+      --accent3: #34d399;
+      --warn: #fb923c;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'SF Pro', system-ui, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      padding: 24px;
+      min-height: 100vh;
+    }
+
+    /* header */
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 24px;
+    }
+    header h1 { font-size: 20px; font-weight: 600; letter-spacing: -0.5px; }
+    header h1 span { color: var(--accent); }
+    .meta { font-size: 12px; color: var(--muted); }
+
+    /* stat cards row */
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 12px;
+      margin-bottom: 24px;
+    }
+    .stat-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 16px;
+    }
+    .stat-card .label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; }
+    .stat-card .value { font-size: 28px; font-weight: 700; margin-top: 4px; letter-spacing: -1px; }
+    .stat-card .sub { font-size: 12px; color: var(--muted); margin-top: 2px; }
+    .stat-card.accent .value { color: var(--accent); }
+    .stat-card.blue .value { color: var(--accent2); }
+    .stat-card.green .value { color: var(--accent3); }
+    .stat-card.orange .value { color: var(--warn); }
+
+    /* charts grid */
+    .charts {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+      margin-bottom: 24px;
+    }
+    .chart-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 16px;
+    }
+    .chart-card h3 { font-size: 13px; color: var(--muted); margin-bottom: 12px; font-weight: 500; }
+    .chart-card.wide { grid-column: 1 / -1; }
+
+    /* table */
+    .table-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 16px;
+      margin-bottom: 24px;
+    }
+    .table-card h3 { font-size: 13px; color: var(--muted); margin-bottom: 12px; font-weight: 500; }
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    th { text-align: left; color: var(--muted); font-weight: 500; padding: 8px 12px; border-bottom: 1px solid var(--border); }
+    td { padding: 8px 12px; border-bottom: 1px solid var(--border); }
+    tr:last-child td { border: none; }
+    .num { text-align: right; font-variant-numeric: tabular-nums; }
+
+    /* refresh indicator */
+    .refresh-dot {
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      background: var(--accent3);
+      display: inline-block;
+      margin-right: 6px;
+      animation: pulse 2s infinite;
+    }
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.3; }
+    }
+
+    /* responsive */
+    @media (max-width: 768px) {
+      .charts { grid-template-columns: 1fr; }
+      .stats { grid-template-columns: repeat(2, 1fr); }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1><span>Claude</span> Token Tracker</h1>
+    <div class="meta"><span class="refresh-dot"></span>Auto-refresh 30s &middot; <span id="lastUpdate">loading...</span></div>
+  </header>
+
+  <!-- stat cards -->
+  <div class="stats">
+    <div class="stat-card accent">
+      <div class="label">Estimated API Cost</div>
+      <div class="value" id="totalCost">--</div>
+      <div class="sub">what you'd pay without subscription</div>
+    </div>
+    <div class="stat-card blue">
+      <div class="label">Output Tokens</div>
+      <div class="value" id="totalOutput">--</div>
+      <div class="sub" id="totalInput">-- input</div>
+    </div>
+    <div class="stat-card green">
+      <div class="label">Cache Read Tokens</div>
+      <div class="value" id="totalCacheRead">--</div>
+      <div class="sub" id="totalCacheCreation">-- cache creation</div>
+    </div>
+    <div class="stat-card orange">
+      <div class="label">Total Messages</div>
+      <div class="value" id="totalMessages">--</div>
+      <div class="sub" id="totalSessions">-- sessions</div>
+    </div>
+  </div>
+
+  <!-- charts -->
+  <div class="charts">
+    <div class="chart-card wide">
+      <h3>Daily Token Usage (last 30 days)</h3>
+      <canvas id="dailyChart" height="80"></canvas>
+    </div>
+    <div class="chart-card">
+      <h3>Model Breakdown</h3>
+      <canvas id="modelChart"></canvas>
+    </div>
+    <div class="chart-card">
+      <h3>Estimated Cost by Model</h3>
+      <canvas id="costChart"></canvas>
+    </div>
+  </div>
+
+  <!-- project table -->
+  <div class="table-card">
+    <h3>Usage by Project</h3>
+    <table>
+      <thead>
+        <tr>
+          <th>Project</th>
+          <th class="num">Messages</th>
+          <th class="num">Input</th>
+          <th class="num">Output</th>
+          <th class="num">Cache Read</th>
+          <th class="num">Total Tokens</th>
+        </tr>
+      </thead>
+      <tbody id="projectTable"></tbody>
+    </table>
+  </div>
+
+  <script>
+    const fmt = (n) => {
+      if (n >= 1_000_000_000) return (n / 1_000_000_000).toFixed(1) + 'B';
+      if (n >= 1_000_000) return (n / 1_000_000).toFixed(1) + 'M';
+      if (n >= 1_000) return (n / 1_000).toFixed(1) + 'K';
+      return n.toString();
+    };
+
+    const fmtExact = (n) => n.toLocaleString();
+
+    // chart instances
+    let dailyChart, modelChart, costChart;
+
+    // chart defaults
+    Chart.defaults.color = '#6b6b80';
+    Chart.defaults.borderColor = '#1e1e2e';
+    Chart.defaults.font.family = '-apple-system, system-ui, sans-serif';
+    Chart.defaults.font.size = 11;
+
+    function renderDailyChart(dailyUsage) {
+      const days = Object.keys(dailyUsage).sort().slice(-30);
+      const data = days.map(d => dailyUsage[d]);
+
+      const config = {
+        type: 'bar',
+        data: {
+          labels: days.map(d => d.slice(5)),
+          datasets: [
+            { label: 'Output', data: data.map(d => d.output), backgroundColor: '#c084fc', borderRadius: 4, barPercentage: 0.7 },
+            { label: 'Input', data: data.map(d => d.input), backgroundColor: '#38bdf8', borderRadius: 4, barPercentage: 0.7 },
+            { label: 'Cache Read', data: data.map(d => d.cacheRead), backgroundColor: '#34d399', borderRadius: 4, barPercentage: 0.7 },
+          ]
+        },
+        options: {
+          responsive: true,
+          plugins: { legend: { position: 'top', labels: { boxWidth: 10, padding: 16 } } },
+          scales: {
+            x: { stacked: true, grid: { display: false } },
+            y: { stacked: true, ticks: { callback: v => fmt(v) } }
+          }
+        }
+      };
+
+      if (dailyChart) { dailyChart.data = config.data; dailyChart.update(); }
+      else dailyChart = new Chart(document.getElementById('dailyChart'), config);
+    }
+
+    function renderModelChart(modelUsage) {
+      const models = Object.keys(modelUsage);
+      const totals = models.map(m => {
+        const u = modelUsage[m];
+        return u.input + u.output + u.cacheRead + u.cacheCreation;
+      });
+
+      // short model names
+      const labels = models.map(m => m.replace('claude-', '').replace(/-\d{8}$/, ''));
+      const colors = ['#c084fc', '#38bdf8', '#34d399', '#fb923c', '#f472b6'];
+
+      const config = {
+        type: 'doughnut',
+        data: {
+          labels,
+          datasets: [{ data: totals, backgroundColor: colors.slice(0, models.length), borderWidth: 0 }]
+        },
+        options: {
+          responsive: true,
+          plugins: {
+            legend: { position: 'bottom', labels: { boxWidth: 10, padding: 12 } },
+            tooltip: { callbacks: { label: ctx => `${ctx.label}: ${fmt(ctx.parsed)}` } }
+          }
+        }
+      };
+
+      if (modelChart) { modelChart.data = config.data; modelChart.update(); }
+      else modelChart = new Chart(document.getElementById('modelChart'), config);
+    }
+
+    function renderCostChart(estimatedCost) {
+      const models = Object.keys(estimatedCost.breakdown);
+      const costs = models.map(m => estimatedCost.breakdown[m]);
+      const labels = models.map(m => m.replace('claude-', '').replace(/-\d{8}$/, ''));
+      const colors = ['#c084fc', '#38bdf8', '#34d399', '#fb923c', '#f472b6'];
+
+      const config = {
+        type: 'bar',
+        data: {
+          labels,
+          datasets: [{ data: costs, backgroundColor: colors.slice(0, models.length), borderRadius: 6, barPercentage: 0.5 }]
+        },
+        options: {
+          responsive: true,
+          indexAxis: 'y',
+          plugins: { legend: { display: false }, tooltip: { callbacks: { label: ctx => `$${ctx.parsed.x.toFixed(2)}` } } },
+          scales: {
+            x: { ticks: { callback: v => '$' + v } },
+            y: { grid: { display: false } }
+          }
+        }
+      };
+
+      if (costChart) { costChart.data = config.data; costChart.update(); }
+      else costChart = new Chart(document.getElementById('costChart'), config);
+    }
+
+    function renderProjectTable(projectUsage) {
+      const sorted = Object.entries(projectUsage)
+        .map(([name, u]) => ({ name, ...u, total: u.input + u.output + u.cacheRead + u.cacheCreation }))
+        .sort((a, b) => b.total - a.total);
+
+      document.getElementById('projectTable').innerHTML = sorted.map(p => `
+        <tr>
+          <td>${p.name || '(root)'}</td>
+          <td class="num">${fmtExact(p.messages)}</td>
+          <td class="num">${fmt(p.input)}</td>
+          <td class="num">${fmt(p.output)}</td>
+          <td class="num">${fmt(p.cacheRead)}</td>
+          <td class="num">${fmt(p.total)}</td>
+        </tr>
+      `).join('');
+    }
+
+    async function fetchAndRender() {
+      try {
+        const res = await fetch('/api/usage');
+        const data = await res.json();
+
+        // stat cards
+        document.getElementById('totalCost').textContent = '$' + data.estimatedCost.total.toLocaleString();
+        document.getElementById('totalOutput').textContent = fmt(data.totals.outputTokens);
+        document.getElementById('totalInput').textContent = fmt(data.totals.inputTokens) + ' input';
+        document.getElementById('totalCacheRead').textContent = fmt(data.totals.cacheReadTokens);
+        document.getElementById('totalCacheCreation').textContent = fmt(data.totals.cacheCreationTokens) + ' cache creation';
+        document.getElementById('totalMessages').textContent = fmtExact(data.totals.totalMessages);
+        document.getElementById('totalSessions').textContent = data.totals.totalSessions + ' sessions';
+        document.getElementById('lastUpdate').textContent = new Date(data.lastUpdated).toLocaleTimeString();
+
+        // charts
+        renderDailyChart(data.dailyUsage);
+        renderModelChart(data.modelUsage);
+        renderCostChart(data.estimatedCost);
+        renderProjectTable(data.projectUsage);
+      } catch (err) {
+        console.error('Fetch error:', err);
+      }
+    }
+
+    // initial load + auto-refresh
+    fetchAndRender();
+    setInterval(fetchAndRender, 30_000);
+  </script>
+</body>
+</html>
