@@ -11,14 +11,12 @@ const fileCache = new Map();
 
 // Parse JSONL, return per-message token data
 async function parseJSONL(filePath) {
-  // check mtime — skip if unchanged
   const info = await stat(filePath).catch(() => null);
   if (!info) return [];
   const mtime = info.mtimeMs;
   const cached = fileCache.get(filePath);
   if (cached && cached.mtime === mtime) return cached.messages;
 
-  // parse
   const content = await readFile(filePath, "utf-8");
   const lines = content.split("\n").filter(Boolean);
   const messages = [];
@@ -46,7 +44,6 @@ async function parseJSONL(filePath) {
 }
 
 export async function getUsageData() {
-  // collect all messages from JSONL (incremental — only re-parses changed files)
   const allMessages = [];
   const glob = new Glob("**/*.jsonl");
   for await (const path of glob.scan(PROJECTS_DIR)) {
@@ -54,37 +51,53 @@ export async function getUsageData() {
     allMessages.push(...messages);
   }
 
-  // time window cutoffs
   const now = new Date();
-  const cutoff24h = new Date(now - 24 * 60 * 60 * 1000).toISOString();
-  const cutoff7d = new Date(now - 7 * 24 * 60 * 60 * 1000).toISOString();
-  const cutoff30d = new Date(now - 30 * 24 * 60 * 60 * 1000).toISOString();
+  const ms = (h) => h * 60 * 60 * 1000;
+
+  // current windows
+  const cutoff24h = new Date(now - ms(24)).toISOString();
+  const cutoff7d = new Date(now - ms(24 * 7)).toISOString();
+  const cutoff30d = new Date(now - ms(24 * 30)).toISOString();
+
+  // previous period windows (for trend comparison)
+  const cutoffPrev24h = new Date(now - ms(48)).toISOString();
+  const cutoffPrev7d = new Date(now - ms(24 * 14)).toISOString();
+  const cutoffPrev30d = new Date(now - ms(24 * 60)).toISOString();
 
   // aggregate
   const modelUsage = {};
   let jsonlTotal = 0;
-  const windows = { last24h: 0, last7d: 0, last30d: 0, allTime: 0 };
+  const windows = {
+    last24h: 0, last7d: 0, last30d: 0, allTime: 0,
+    prev24h: 0, prev7d: 0, prev30d: 0,
+  };
 
   for (const msg of allMessages) {
     const tokens = msg.input + msg.output;
     jsonlTotal += tokens;
 
-    // time windows
+    // current windows
     if (msg.timestamp >= cutoff30d) windows.last30d += tokens;
     if (msg.timestamp >= cutoff7d) windows.last7d += tokens;
     if (msg.timestamp >= cutoff24h) windows.last24h += tokens;
 
+    // previous period (e.g. prev24h = 48h ago to 24h ago)
+    if (msg.timestamp >= cutoffPrev24h && msg.timestamp < cutoff24h) windows.prev24h += tokens;
+    if (msg.timestamp >= cutoffPrev7d && msg.timestamp < cutoff7d) windows.prev7d += tokens;
+    if (msg.timestamp >= cutoffPrev30d && msg.timestamp < cutoff30d) windows.prev30d += tokens;
+
     // model aggregation
     if (!modelUsage[msg.model]) {
-      modelUsage[msg.model] = { input: 0, output: 0, cacheRead: 0, cacheCreation: 0 };
+      modelUsage[msg.model] = { input: 0, output: 0, cacheRead: 0, cacheCreation: 0, messages: 0 };
     }
     modelUsage[msg.model].input += msg.input;
     modelUsage[msg.model].output += msg.output;
     modelUsage[msg.model].cacheRead += msg.cacheRead;
     modelUsage[msg.model].cacheCreation += msg.cacheCreation;
+    modelUsage[msg.model].messages += 1;
   }
 
-  // all-time = max of JSONL total vs stats-cache total (stats-cache may include unflushed data)
+  // all-time from stats-cache (matches Claude /usage)
   let statsCacheTotal = 0;
   try {
     const raw = await readFile(STATS_CACHE, "utf-8");
@@ -93,7 +106,6 @@ export async function getUsageData() {
       statsCacheTotal += (u.inputTokens || 0) + (u.outputTokens || 0);
     }
   } catch {}
-
   windows.allTime = Math.max(jsonlTotal, statsCacheTotal);
 
   const estimatedCost = estimateCost(modelUsage);

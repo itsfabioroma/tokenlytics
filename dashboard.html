@@ -20,7 +20,6 @@
 
     .container { max-width: 640px; width: 100%; }
 
-    /* ascii header */
     .ascii-header {
       color: #666;
       font-size: 11px;
@@ -29,29 +28,37 @@
       white-space: pre;
     }
 
-    /* main token display */
-    .token-display {
+    /* hero: last 24h */
+    .hero {
       border: 1px solid #222;
       padding: 32px;
       margin-bottom: 16px;
     }
-    .token-label {
+    .hero .label {
       font-size: 11px;
       color: #555;
       text-transform: uppercase;
       letter-spacing: 2px;
       margin-bottom: 8px;
     }
-    .token-value {
+    .hero .value {
       font-size: 48px;
       font-weight: 700;
       color: #fff;
       letter-spacing: -1px;
       font-variant-numeric: tabular-nums;
     }
+    .hero .trend {
+      font-size: 13px;
+      margin-top: 6px;
+      font-variant-numeric: tabular-nums;
+    }
+    .up { color: #fb923c; }
+    .down { color: #34d399; }
+    .flat { color: #555; }
 
-    /* breakdown rows */
-    .breakdown {
+    /* time window rows */
+    .windows {
       border: 1px solid #222;
       border-top: none;
       padding: 16px 32px;
@@ -59,16 +66,18 @@
     .row {
       display: flex;
       justify-content: space-between;
+      align-items: center;
       padding: 6px 0;
       font-size: 13px;
       border-bottom: 1px solid #151515;
     }
     .row:last-child { border: none; }
     .row .label { color: #555; }
+    .row .right { display: flex; gap: 16px; align-items: center; }
     .row .val { color: #999; font-variant-numeric: tabular-nums; }
-    .row.highlight .val { color: #c084fc; }
+    .row .trend { font-size: 11px; width: 70px; text-align: right; }
 
-    /* model section */
+    /* sections */
     .section {
       margin-top: 24px;
       border: 1px solid #222;
@@ -82,20 +91,32 @@
       margin-bottom: 12px;
     }
 
-    /* bar chart ascii style */
-    .bar-row {
+    /* model bars */
+    .model {
+      padding: 8px 0;
+      border-bottom: 1px solid #151515;
+    }
+    .model:last-child { border: none; }
+    .model-head {
       display: flex;
       align-items: center;
       gap: 12px;
-      padding: 4px 0;
       font-size: 12px;
     }
-    .bar-label { width: 160px; color: #666; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .bar { flex: 1; height: 8px; background: #151515; position: relative; }
+    .model-name { width: 160px; color: #666; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .bar { flex: 1; height: 8px; background: #151515; }
     .bar-fill { height: 100%; background: #333; transition: width 0.3s; }
-    .bar-val { width: 120px; text-align: right; color: #666; font-variant-numeric: tabular-nums; }
+    .model-val { width: 120px; text-align: right; color: #666; font-variant-numeric: tabular-nums; }
+    .model-detail {
+      display: flex;
+      gap: 16px;
+      padding-left: 4px;
+      margin-top: 4px;
+      font-size: 11px;
+      color: #444;
+    }
+    .model-detail .cost { color: #c084fc; }
 
-    /* footer */
     .footer {
       margin-top: 24px;
       font-size: 11px;
@@ -109,23 +130,41 @@
 <body>
   <div class="container">
 
-    <!-- ascii art header -->
     <div class="ascii-header">
  ╔╦╗╔═╗╦╔═╔═╗╔╗╔╦  ╦ ╦╔╦╗╦╔═╗╔═╗
   ║ ║ ║╠╩╗║╣ ║║║║  ╚╦╝ ║ ║║  ╚═╗
   ╩ ╚═╝╩ ╩╚═╝╝╚╝╩═╝╩  ╩ ╩╚═╝╚═╝</div>
 
-    <!-- total tokens -->
-    <div class="token-display">
-      <div class="token-label">all time</div>
-      <div class="token-value" id="allTime">...</div>
+    <!-- hero: last 24h -->
+    <div class="hero">
+      <div class="label">last 24 hours</div>
+      <div class="value" id="last24h">...</div>
+      <div class="trend" id="trend24h"></div>
     </div>
 
-    <!-- time windows -->
-    <div class="breakdown">
-      <div class="row"><span class="label">last 24h</span><span class="val" id="last24h">-</span></div>
-      <div class="row"><span class="label">last 7d</span><span class="val" id="last7d">-</span></div>
-      <div class="row"><span class="label">last 30d</span><span class="val" id="last30d">-</span></div>
+    <!-- other windows -->
+    <div class="windows">
+      <div class="row">
+        <span class="label">last 7d</span>
+        <div class="right">
+          <span class="val" id="last7d">-</span>
+          <span class="trend" id="trend7d"></span>
+        </div>
+      </div>
+      <div class="row">
+        <span class="label">last 30d</span>
+        <div class="right">
+          <span class="val" id="last30d">-</span>
+          <span class="trend" id="trend30d"></span>
+        </div>
+      </div>
+      <div class="row">
+        <span class="label">all time</span>
+        <div class="right">
+          <span class="val" id="allTime">-</span>
+          <span class="trend" style="width:70px"></span>
+        </div>
+      </div>
     </div>
 
     <!-- models -->
@@ -140,14 +179,14 @@
   <script>
     const f = n => n.toLocaleString();
 
-    function renderBars(containerId, data, maxVal) {
-      document.getElementById(containerId).innerHTML = data.map(d => `
-        <div class="bar-row">
-          <span class="bar-label">${d.name}</span>
-          <div class="bar"><div class="bar-fill" style="width:${(d.val / maxVal * 100).toFixed(1)}%"></div></div>
-          <span class="bar-val">${f(d.val)}</span>
-        </div>
-      `).join('');
+    // trend: compare current vs previous period
+    function trendStr(current, previous) {
+      if (!previous) return '<span class="flat">—</span>';
+      const pct = ((current - previous) / previous * 100);
+      if (Math.abs(pct) < 1) return '<span class="flat">~ same</span>';
+      const arrow = pct > 0 ? '▲' : '▼';
+      const cls = pct > 0 ? 'up' : 'down';
+      return `<span class="${cls}">${arrow} ${Math.abs(pct).toFixed(0)}%</span>`;
     }
 
     async function refresh() {
@@ -156,42 +195,46 @@
         const d = await res.json();
         const w = d.windows;
 
-        document.getElementById('allTime').textContent = f(w.allTime);
+        // hero
         document.getElementById('last24h').textContent = f(w.last24h);
+        document.getElementById('trend24h').innerHTML = 'vs prev 24h: ' + trendStr(w.last24h, w.prev24h);
+
+        // windows
         document.getElementById('last7d').textContent = f(w.last7d);
+        document.getElementById('trend7d').innerHTML = trendStr(w.last7d, w.prev7d);
         document.getElementById('last30d').textContent = f(w.last30d);
+        document.getElementById('trend30d').innerHTML = trendStr(w.last30d, w.prev30d);
+        document.getElementById('allTime').textContent = f(w.allTime);
 
-        // model bars
+        // models
         const models = Object.entries(d.modelUsage)
-          .map(([name, u]) => {
-            const tokens = u.input + u.output + u.cacheRead + u.cacheCreation;
-            const cost = d.estimatedCost.breakdown[name] || 0;
-            return {
-              name: name.replace('claude-', '').replace(/-\d{8}$/, ''),
-              val: tokens,
-              cost,
-              input: u.input,
-              output: u.output,
-              cacheRead: u.cacheRead,
-              messages: u.messages,
-            };
-          })
-          .sort((a, b) => b.val - a.val);
+          .map(([name, u]) => ({
+            name: name.replace('claude-', '').replace(/-\d{8}$/, ''),
+            tokens: u.input + u.output,
+            cost: d.estimatedCost.breakdown[name] || 0,
+            input: u.input,
+            output: u.output,
+            cacheRead: u.cacheRead,
+            messages: u.messages,
+          }))
+          .filter(m => m.tokens > 0)
+          .sort((a, b) => b.tokens - a.tokens);
 
-        // custom render for models with more detail
+        const maxTokens = models[0]?.tokens || 1;
+
         document.getElementById('modelBars').innerHTML = models.map(m => `
-          <div style="padding:8px 0;border-bottom:1px solid #151515">
-            <div class="bar-row">
-              <span class="bar-label">${m.name}</span>
-              <div class="bar"><div class="bar-fill" style="width:${(m.val / models[0].val * 100).toFixed(1)}%"></div></div>
-              <span class="bar-val">${f(m.val)}</span>
+          <div class="model">
+            <div class="model-head">
+              <span class="model-name">${m.name}</span>
+              <div class="bar"><div class="bar-fill" style="width:${(m.tokens / maxTokens * 100).toFixed(1)}%"></div></div>
+              <span class="model-val">${f(m.tokens)}</span>
             </div>
-            <div style="display:flex;gap:16px;padding-left:4px;margin-top:4px;font-size:11px;color:#444">
+            <div class="model-detail">
               <span>out: ${f(m.output)}</span>
               <span>in: ${f(m.input)}</span>
               <span>cache: ${f(m.cacheRead)}</span>
               <span>msgs: ${f(m.messages)}</span>
-              <span style="color:#c084fc">$${f(m.cost)}</span>
+              <span class="cost">$${f(m.cost)}</span>
             </div>
           </div>
         `).join('');
