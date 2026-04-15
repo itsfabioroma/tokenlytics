@@ -134,18 +134,6 @@
       </div>
     </div>
 
-    <!-- overview stats -->
-    <div class="section">
-      <div class="section-title">overview</div>
-      <div class="stats-grid" id="statsGrid"></div>
-    </div>
-
-    <!-- activity heatmap -->
-    <div class="section">
-      <div class="section-title">activity (last 90 days)</div>
-      <div class="heatmap" id="heatmap"></div>
-    </div>
-
     <!-- models -->
     <div class="section">
       <div class="section-title">by model</div>
@@ -181,30 +169,6 @@
       return `<span class="${cls}">${arrow} ${Math.abs(pct).toFixed(0)}%</span>`;
     }
 
-    // activity heatmap (last 90 days)
-    function renderHeatmap(heatmap) {
-      const map = new Map(heatmap.map(d => [d.date, d.messages]));
-      const now = new Date();
-      const cells = [];
-
-      for (let i = 89; i >= 0; i--) {
-        const d = new Date(now - i * 24 * 60 * 60 * 1000);
-        const dateStr = d.toISOString().slice(0, 10);
-        const msgs = map.get(dateStr) || 0;
-
-        // color intensity (4 levels like GitHub)
-        let bg = '#151515';
-        if (msgs > 0) bg = '#0e4429';
-        if (msgs > 50) bg = '#006d32';
-        if (msgs > 200) bg = '#26a641';
-        if (msgs > 500) bg = '#39d353';
-
-        cells.push(`<div class="heatmap-cell" style="background:${bg}" title="${dateStr}: ${msgs} msgs"></div>`);
-      }
-
-      document.getElementById('heatmap').innerHTML = cells.join('');
-    }
-
     async function refresh() {
       try {
         const res = await fetch('/api/usage');
@@ -225,25 +189,6 @@
         document.getElementById('trend30d').innerHTML = trendStr(w.last30d, w.prev30d);
         document.getElementById('spark30d').innerHTML = sparkline(s.last30d, 200, 24, '#34d399');
         document.getElementById('allTime').textContent = f(w.allTime);
-
-        // overview stats
-        const ss = d.sessionStats;
-        const hours = ['12am','1am','2am','3am','4am','5am','6am','7am','8am','9am','10am','11am','12pm','1pm','2pm','3pm','4pm','5pm','6pm','7pm','8pm','9pm','10pm','11pm'];
-        document.getElementById('statsGrid').innerHTML = `
-          <div class="stat"><span class="k">sessions</span><span class="v">${f(ss.totalSessions)}</span></div>
-          <div class="stat"><span class="k">messages</span><span class="v">${f(ss.totalMessages)}</span></div>
-          <div class="stat"><span class="k">active days</span><span class="v">${ss.activeDays}</span></div>
-          <div class="stat"><span class="k">longest session</span><span class="v">${ss.longestSession || '-'}</span></div>
-          <div class="stat"><span class="k">current streak</span><span class="v highlight">${d.streaks.currentStreak}d</span></div>
-          <div class="stat"><span class="k">longest streak</span><span class="v">${d.streaks.longestStreak}d</span></div>
-          <div class="stat"><span class="k">favorite model</span><span class="v highlight">${d.favoriteModel || '-'}</span></div>
-          <div class="stat"><span class="k">peak hour</span><span class="v">${hours[d.peakHour] || '-'}</span></div>
-          <div class="stat"><span class="k">most active day</span><span class="v">${d.peakDay || '-'}</span></div>
-          <div class="stat"><span class="k">est. api cost</span><span class="v highlight">$${f(d.estimatedCost.total)}</span></div>
-        `;
-
-        // heatmap
-        renderHeatmap(d.heatmap);
 
         // models
         const models = Object.entries(d.modelUsage)

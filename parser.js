@@ -47,27 +47,21 @@ async function parseJSONL(filePath) {
 
 // Process all JSONL files with date filter + last-entry-wins dedup
 // Matches Claude Code's processSessionFiles behavior
+// No dedup — matches /usage processSessionFiles behavior exactly
 async function processMessages(fromDate, toDate) {
-  const lastSeen = new Map();
+  const messages = [];
   const glob = new Glob("**/*.jsonl");
 
   for await (const path of glob.scan(PROJECTS_DIR)) {
     const entries = await parseJSONL(`${PROJECTS_DIR}/${path}`);
     for (const entry of entries) {
-      // date filtering
       if (fromDate && entry.date < fromDate) continue;
       if (toDate && entry.date > toDate) continue;
-
-      // last-entry-wins dedup (streaming progress writes)
-      if (entry.dedupKey) {
-        lastSeen.set(entry.dedupKey, entry);
-      } else {
-        lastSeen.set(`nokey-${lastSeen.size}`, entry);
-      }
+      messages.push(entry);
     }
   }
 
-  return [...lastSeen.values()];
+  return messages;
 }
 
 // Aggregate messages into model usage + token totals
