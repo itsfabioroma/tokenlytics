@@ -121,27 +121,6 @@
       <div class="token-value" id="total">...</div>
     </div>
 
-    <!-- breakdown -->
-    <div class="breakdown">
-      <div class="row"><span class="label">output</span><span class="val" id="output">-</span></div>
-      <div class="row"><span class="label">input</span><span class="val" id="input">-</span></div>
-      <div class="row"><span class="label">cache read</span><span class="val" id="cacheRead">-</span></div>
-      <div class="row"><span class="label">cache creation</span><span class="val" id="cacheCreation">-</span></div>
-      <div class="row highlight"><span class="label">est. api cost</span><span class="val" id="cost">-</span></div>
-      <div class="row"><span class="label">messages</span><span class="val" id="messages">-</span></div>
-      <div class="row"><span class="label">sessions</span><span class="val" id="sessions">-</span></div>
-    </div>
-
-    <!-- subscription -->
-    <div class="section">
-      <div class="section-title">subscription</div>
-      <div class="row"><span class="label">plan</span><span class="val" id="plan">-</span></div>
-      <div class="row"><span class="label">monthly cost</span><span class="val" id="subCost">-</span></div>
-      <div class="row highlight"><span class="label">savings vs api</span><span class="val" id="savings">-</span></div>
-      <div class="row"><span class="label">cost per message</span><span class="val" id="perMsg">-</span></div>
-      <div class="row"><span class="label">active since</span><span class="val" id="since">-</span></div>
-    </div>
-
     <!-- models -->
     <div class="section">
       <div class="section-title">by model</div>
@@ -171,25 +150,9 @@
         const t = d.totals;
         const total = t.inputTokens + t.outputTokens + t.cacheReadTokens + t.cacheCreationTokens;
 
-        // total + breakdown
         document.getElementById('total').textContent = f(total);
-        document.getElementById('output').textContent = f(t.outputTokens);
-        document.getElementById('input').textContent = f(t.inputTokens);
-        document.getElementById('cacheRead').textContent = f(t.cacheReadTokens);
-        document.getElementById('cacheCreation').textContent = f(t.cacheCreationTokens);
-        document.getElementById('cost').textContent = '$' + f(d.estimatedCost.total);
-        document.getElementById('messages').textContent = f(t.totalMessages);
-        document.getElementById('sessions').textContent = f(t.totalSessions);
 
-        // subscription info
-        const sub = d.subscription;
-        document.getElementById('plan').textContent = sub.plan;
-        document.getElementById('subCost').textContent = '$' + f(sub.monthlyCost) + '/mo';
-        document.getElementById('savings').textContent = '$' + f(sub.savings);
-        document.getElementById('perMsg').textContent = '$' + sub.costPerMessage.toFixed(4);
-        document.getElementById('since').textContent = sub.activeSince;
-
-        // model bars — show tokens + cost per model
+        // model bars
         const models = Object.entries(d.modelUsage)
           .map(([name, u]) => {
             const tokens = u.input + u.output + u.cacheRead + u.cacheCreation;
