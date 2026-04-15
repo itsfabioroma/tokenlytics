@@ -9,17 +9,17 @@ const STATS_CACHE = `${CLAUDE_DIR}/stats-cache.json`;
 // per-file cache: only re-parse when mtime changes
 const fileCache = new Map();
 
-// Parse JSONL, return per-message token data
+// Parse JSONL, return raw entries (dedup happens globally in getUsageData)
 async function parseJSONL(filePath) {
   const info = await stat(filePath).catch(() => null);
   if (!info) return [];
   const mtime = info.mtimeMs;
   const cached = fileCache.get(filePath);
-  if (cached && cached.mtime === mtime) return cached.messages;
+  if (cached && cached.mtime === mtime) return cached.entries;
 
   const content = await readFile(filePath, "utf-8");
   const lines = content.split("\n").filter(Boolean);
-  const messages = [];
+  const entries = [];
 
   for (const line of lines) {
     try {
@@ -28,27 +28,36 @@ async function parseJSONL(filePath) {
       const usage = obj.message?.usage;
       if (!usage) continue;
 
-      messages.push({
+      entries.push({
         timestamp: obj.timestamp,
         model: obj.message.model || "unknown",
         input: usage.input_tokens || 0,
         output: usage.output_tokens || 0,
         cacheRead: usage.cache_read_input_tokens || 0,
         cacheCreation: usage.cache_creation_input_tokens || 0,
+        dedupKey: obj.message?.id && obj.requestId ? `${obj.message.id}:${obj.requestId}` : null,
       });
     } catch {}
   }
 
-  fileCache.set(filePath, { mtime, messages });
-  return messages;
+  fileCache.set(filePath, { mtime, entries });
+  return entries;
 }
 
 export async function getUsageData() {
+  // global dedup across all files (Claude writes dupes during streaming + subagent re-emit)
+  const seen = new Set();
   const allMessages = [];
   const glob = new Glob("**/*.jsonl");
   for await (const path of glob.scan(PROJECTS_DIR)) {
-    const messages = await parseJSONL(`${PROJECTS_DIR}/${path}`);
-    allMessages.push(...messages);
+    const entries = await parseJSONL(`${PROJECTS_DIR}/${path}`);
+    for (const entry of entries) {
+      if (entry.dedupKey) {
+        if (seen.has(entry.dedupKey)) continue;
+        seen.add(entry.dedupKey);
+      }
+      allMessages.push(entry);
+    }
   }
 
   const now = new Date();
