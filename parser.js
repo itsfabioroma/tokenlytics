@@ -1,128 +1,81 @@
 import { readFile } from "fs/promises";
-import { basename } from "path";
 import { homedir } from "os";
 import { Glob } from "bun";
 
-const PROJECTS_DIR = `${homedir()}/.claude/projects`;
+const CLAUDE_DIR = `${homedir()}/.claude`;
+const PROJECTS_DIR = `${CLAUDE_DIR}/projects`;
+const STATS_CACHE = `${CLAUDE_DIR}/stats-cache.json`;
 
-// Parse a single JSONL file, extracting token usage per assistant message
+// Read stats-cache.json — same source Claude Code's /usage uses
+async function readStatsCache() {
+  const raw = await readFile(STATS_CACHE, "utf-8");
+  return JSON.parse(raw);
+}
+
+// Parse JSONL for time-windowed data (24h/7d/30d need timestamps)
 async function parseJSONL(filePath) {
   const content = await readFile(filePath, "utf-8");
   const lines = content.split("\n").filter(Boolean);
-
   const messages = [];
+
   for (const line of lines) {
     try {
       const obj = JSON.parse(line);
       if (obj.type !== "assistant") continue;
-
-      const msg = obj.message || {};
-      const usage = msg.usage;
+      const usage = obj.message?.usage;
       if (!usage) continue;
 
       messages.push({
         timestamp: obj.timestamp,
-        model: msg.model || "unknown",
-        sessionId: obj.sessionId,
-        inputTokens: usage.input_tokens || 0,
-        outputTokens: usage.output_tokens || 0,
-        cacheReadTokens: usage.cache_read_input_tokens || 0,
-        cacheCreationTokens: usage.cache_creation_input_tokens || 0,
+        tokens: (usage.input_tokens || 0) + (usage.output_tokens || 0),
       });
-    } catch {
-      // skip malformed lines
-    }
+    } catch {}
   }
   return messages;
 }
 
-// Find all JSONL files recursively
-async function findJSONLFiles() {
-  const glob = new Glob("**/*.jsonl");
-  const files = [];
-  for await (const path of glob.scan(PROJECTS_DIR)) {
-    files.push(`${PROJECTS_DIR}/${path}`);
-  }
-  return files;
-}
-
-// Aggregate all usage data
 export async function getUsageData() {
-  const jsonlFiles = await findJSONLFiles();
-  const allMessages = [];
+  // all-time totals from stats-cache (matches Claude's /usage exactly)
+  const cache = await readStatsCache();
+  const modelUsage = {};
+  let allTime = 0;
 
-  for (const file of jsonlFiles) {
-    const messages = await parseJSONL(file);
-    allMessages.push(...messages);
+  for (const [model, u] of Object.entries(cache.modelUsage || {})) {
+    const total = u.inputTokens + u.outputTokens;
+    allTime += total;
+    modelUsage[model] = {
+      input: u.inputTokens,
+      output: u.outputTokens,
+      cacheRead: u.cacheReadInputTokens,
+      cacheCreation: u.cacheCreationInputTokens,
+      messages: 0,
+    };
   }
 
-  // sort by timestamp
-  allMessages.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
-
-  // time window cutoffs
+  // time windows from JSONL (need timestamps)
   const now = new Date();
   const cutoff24h = new Date(now - 24 * 60 * 60 * 1000).toISOString();
   const cutoff7d = new Date(now - 7 * 24 * 60 * 60 * 1000).toISOString();
   const cutoff30d = new Date(now - 30 * 24 * 60 * 60 * 1000).toISOString();
+  const windows = { last24h: 0, last7d: 0, last30d: 0, allTime };
 
-  // aggregate by model + time windows
-  // tokens = input + output only (matches Claude Code's /usage count)
-  const modelUsage = {};
-  const windows = { last24h: 0, last7d: 0, last30d: 0, allTime: 0 };
-
-  for (const msg of allMessages) {
-    const total = msg.inputTokens + msg.outputTokens;
-
-    if (!modelUsage[msg.model]) {
-      modelUsage[msg.model] = { input: 0, output: 0, cacheRead: 0, cacheCreation: 0, messages: 0 };
+  const glob = new Glob("**/*.jsonl");
+  for await (const path of glob.scan(PROJECTS_DIR)) {
+    const messages = await parseJSONL(`${PROJECTS_DIR}/${path}`);
+    for (const msg of messages) {
+      if (msg.timestamp >= cutoff30d) windows.last30d += msg.tokens;
+      if (msg.timestamp >= cutoff7d) windows.last7d += msg.tokens;
+      if (msg.timestamp >= cutoff24h) windows.last24h += msg.tokens;
     }
-    modelUsage[msg.model].input += msg.inputTokens;
-    modelUsage[msg.model].output += msg.outputTokens;
-    modelUsage[msg.model].cacheRead += msg.cacheReadTokens;
-    modelUsage[msg.model].cacheCreation += msg.cacheCreationTokens;
-    modelUsage[msg.model].messages += 1;
-
-    windows.allTime += total;
-    if (msg.timestamp >= cutoff30d) windows.last30d += total;
-    if (msg.timestamp >= cutoff7d) windows.last7d += total;
-    if (msg.timestamp >= cutoff24h) windows.last24h += total;
   }
 
   const estimatedCost = estimateCost(modelUsage);
 
-  return {
-    windows,
-    modelUsage,
-    estimatedCost,
-    lastUpdated: new Date().toISOString(),
-  };
+  return { windows, modelUsage, estimatedCost, lastUpdated: new Date().toISOString() };
 }
 
-// Compute subscription value
-function computeSubscription(apiCost, totalMessages, firstDate) {
-  // Max plan: $200/mo (includes Claude Code)
-  const monthlyCost = 200;
-
-  // months active (rough)
-  const start = new Date(firstDate);
-  const now = new Date();
-  const months = Math.max(1, Math.ceil((now - start) / (30 * 24 * 60 * 60 * 1000)));
-  const totalPaid = months * monthlyCost;
-
-  return {
-    plan: "Max ($200/mo)",
-    monthlyCost,
-    totalPaid,
-    months,
-    savings: Math.round(apiCost - totalPaid),
-    costPerMessage: totalMessages > 0 ? totalPaid / totalMessages : 0,
-    activeSince: firstDate,
-  };
-}
-
-// Estimate what this would cost at API rates
+// Estimate API cost
 function estimateCost(modelUsage) {
-  // pricing per 1M tokens (as of 2026)
   const pricing = {
     "claude-opus-4-6": { input: 15, output: 75, cacheRead: 1.5, cacheCreation: 18.75 },
     "claude-opus-4-5-20251101": { input: 15, output: 75, cacheRead: 1.5, cacheCreation: 18.75 },
@@ -135,7 +88,6 @@ function estimateCost(modelUsage) {
   const breakdown = {};
 
   for (const [model, usage] of Object.entries(modelUsage)) {
-    // find matching pricing (partial match)
     const priceKey = Object.keys(pricing).find((k) => model.includes(k) || k.includes(model));
     const price = pricing[priceKey] || pricing["claude-sonnet-4-5-20250929"];
 
