@@ -1,7 +1,7 @@
 {
-  "name": "token-factory",
+  "name": "tokenlytics",
   "version": "0.1.0",
-  "description": "Token Factory — KPI dashboard for Claude Code usage",
+  "description": "Tokenlytics — real-time token usage analytics for Claude Code",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
