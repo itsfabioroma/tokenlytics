@@ -88,46 +88,49 @@ export async function getUsageData() {
   const now = new Date();
   const today = now.toISOString().slice(0, 10);
 
-  // time window cutoffs
-  const cutoff24h = new Date(now - 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
-  const cutoff7d = new Date(now - 7 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
-  const cutoff30d = new Date(now - 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
-  const cutoffPrev7d = new Date(now - 14 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
-  const cutoffPrev30d = new Date(now - 60 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+  // cutoffs: /usage uses "last N days" exclusive, then adds today
+  const day = (d) => new Date(now - d * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+  const cutoff7d = day(7);
+  const cutoff30d = day(30);
+  const cutoffPrev7d = day(14);
+  const cutoffPrev30d = day(60);
 
   // aggregate from stats-cache dailyModelTokens (same source as /usage)
   const windows = { last24h: 0, last7d: 0, last30d: 0, allTime: 0, prev7d: 0, prev30d: 0, prev24h: 0 };
   const spark7d = new Array(7).fill(0);
   const spark30d = new Array(30).fill(0);
-  const yesterday = new Date(now - 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+  const yesterday = day(1);
 
   for (const entry of cache.dailyModelTokens || []) {
-    const day = entry.date;
+    const d = entry.date;
     const tokens = Object.values(entry.tokensByModel).reduce((a, b) => a + b, 0);
 
-    // time windows
-    if (day >= cutoff7d) windows.last7d += tokens;
-    if (day >= cutoff30d) windows.last30d += tokens;
-    if (day === yesterday || day === cutoff24h) windows.prev24h += tokens;
-    if (day >= cutoffPrev7d && day < cutoff7d) windows.prev7d += tokens;
-    if (day >= cutoffPrev30d && day < cutoff30d) windows.prev30d += tokens;
+    // time windows (exclusive cutoff: > not >=)
+    if (d > cutoff7d) windows.last7d += tokens;
+    if (d > cutoff30d) windows.last30d += tokens;
+    if (d === yesterday) windows.prev24h += tokens;
+    if (d > cutoffPrev7d && d <= cutoff7d) windows.prev7d += tokens;
+    if (d > cutoffPrev30d && d <= cutoff30d) windows.prev30d += tokens;
 
     // sparkline buckets
-    const daysAgo = Math.floor((now - new Date(day)) / (24 * 60 * 60 * 1000));
+    const daysAgo = Math.floor((now - new Date(d)) / (24 * 60 * 60 * 1000));
     if (daysAgo >= 0 && daysAgo < 7) spark7d[6 - daysAgo] += tokens;
     if (daysAgo >= 0 && daysAgo < 30) spark30d[29 - daysAgo] += tokens;
   }
 
-  // today's unflushed JSONL data (only for last24h + sparklines)
+  // today's live data from JSONL (not in stats-cache yet)
   const todayData = await getTodayFromJSONL(today);
   windows.last24h = todayData.tokens;
+  windows.last7d += todayData.tokens;
+  windows.last30d += todayData.tokens;
   spark7d[6] += todayData.tokens;
   spark30d[29] += todayData.tokens;
 
-  // all-time from modelUsage (stats-cache is authoritative)
+  // all-time from modelUsage + today
   for (const u of Object.values(cache.modelUsage || {})) {
     windows.allTime += (u.inputTokens || 0) + (u.outputTokens || 0);
   }
+  windows.allTime += todayData.tokens;
 
   // model usage from stats-cache
   const modelUsage = {};
