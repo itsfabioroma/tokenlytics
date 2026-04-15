@@ -118,19 +118,16 @@ export async function getUsageData() {
     if (daysAgo >= 0 && daysAgo < 30) spark30d[29 - daysAgo] += tokens;
   }
 
-  // add today's unflushed JSONL data
+  // today's unflushed JSONL data (only for last24h + sparklines)
   const todayData = await getTodayFromJSONL(today);
   windows.last24h = todayData.tokens;
-  windows.last7d += todayData.tokens;
-  windows.last30d += todayData.tokens;
   spark7d[6] += todayData.tokens;
   spark30d[29] += todayData.tokens;
 
-  // all-time from modelUsage
+  // all-time from modelUsage (stats-cache is authoritative)
   for (const u of Object.values(cache.modelUsage || {})) {
     windows.allTime += (u.inputTokens || 0) + (u.outputTokens || 0);
   }
-  windows.allTime += todayData.tokens;
 
   // model usage from stats-cache
   const modelUsage = {};
