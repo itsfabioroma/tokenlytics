@@ -167,6 +167,17 @@
       </div>
     </div>
 
+    <!-- streak -->
+    <div class="section" id="streakSection">
+      <div style="display:flex;align-items:center;gap:12px">
+        <span id="streakFire" style="font-size:32px;line-height:1">🔥</span>
+        <div>
+          <div style="font-size:24px;font-weight:700;color:#fff;font-variant-numeric:tabular-nums"><span id="streakCount">0</span> day streak</div>
+          <div style="font-size:11px;color:#555;margin-top:2px">best: <span id="streakBest">0</span>d &middot; today: <span id="streakToday">0</span> tokens</div>
+        </div>
+      </div>
+    </div>
+
     <!-- models -->
     <div class="section">
       <div class="section-title">by model</div>
@@ -205,6 +216,15 @@
         document.getElementById('last30d').textContent = f(w.last30d);
         document.getElementById('trend30d').innerHTML = trendStr(w.last30d, w.prev30d);
         document.getElementById('allTime').textContent = f(w.allTime);
+
+        // streak
+        const s = d.streak;
+        document.getElementById('streakCount').textContent = s.current;
+        document.getElementById('streakBest').textContent = s.best;
+        document.getElementById('streakToday').textContent = f(s.todayTokens);
+        // fire intensity: more flames for longer streaks
+        const flames = s.current >= 7 ? '🔥🔥🔥' : s.current >= 3 ? '🔥🔥' : s.current >= 1 ? '🔥' : '❄️';
+        document.getElementById('streakFire').textContent = flames;
 
         // models
         const models = Object.entries(d.modelUsage)

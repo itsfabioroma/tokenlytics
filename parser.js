@@ -66,6 +66,7 @@ export async function getUsageData() {
 
   // aggregate
   const modelUsage = {};
+  const dailyTokens = {};
   let jsonlTotal = 0;
   const windows = {
     last24h: 0, last7d: 0, last30d: 0, allTime: 0,
@@ -76,12 +77,16 @@ export async function getUsageData() {
     const tokens = msg.input + msg.output;
     jsonlTotal += tokens;
 
+    // daily aggregation for streak
+    const day = msg.timestamp?.slice(0, 10);
+    if (day) dailyTokens[day] = (dailyTokens[day] || 0) + tokens;
+
     // current windows
     if (msg.timestamp >= cutoff30d) windows.last30d += tokens;
     if (msg.timestamp >= cutoff7d) windows.last7d += tokens;
     if (msg.timestamp >= cutoff24h) windows.last24h += tokens;
 
-    // previous period (e.g. prev24h = 48h ago to 24h ago)
+    // previous period
     if (msg.timestamp >= cutoffPrev24h && msg.timestamp < cutoff24h) windows.prev24h += tokens;
     if (msg.timestamp >= cutoffPrev7d && msg.timestamp < cutoff7d) windows.prev7d += tokens;
     if (msg.timestamp >= cutoffPrev30d && msg.timestamp < cutoff30d) windows.prev30d += tokens;
@@ -97,6 +102,9 @@ export async function getUsageData() {
     modelUsage[msg.model].messages += 1;
   }
 
+  // streak: consecutive days where tokens > previous day (walking backward from today)
+  const streak = computeStreak(dailyTokens);
+
   // all-time from stats-cache (matches Claude /usage)
   let statsCacheTotal = 0;
   try {
@@ -110,7 +118,55 @@ export async function getUsageData() {
 
   const estimatedCost = estimateCost(modelUsage);
 
-  return { windows, modelUsage, estimatedCost, lastUpdated: new Date().toISOString() };
+  return { windows, modelUsage, estimatedCost, streak, lastUpdated: new Date().toISOString() };
+}
+
+// Streak: consecutive days (from today backward) where usage > previous day
+function computeStreak(dailyTokens) {
+  const today = new Date().toISOString().slice(0, 10);
+  const days = Object.keys(dailyTokens).sort().reverse();
+
+  // today counts as active if any tokens
+  let count = 0;
+  let bestStreak = 0;
+  let todayTokens = dailyTokens[today] || 0;
+
+  // walk backward from most recent day
+  for (let i = 0; i < days.length - 1; i++) {
+    const current = dailyTokens[days[i]];
+    const previous = dailyTokens[days[i + 1]] || 0;
+
+    // check days are consecutive
+    const d1 = new Date(days[i]);
+    const d2 = new Date(days[i + 1]);
+    const gap = (d1 - d2) / (24 * 60 * 60 * 1000);
+
+    if (gap > 1) break;
+    if (current >= previous) {
+      count++;
+    } else {
+      break;
+    }
+  }
+
+  // find longest streak ever
+  let tempStreak = 0;
+  const sortedDays = Object.keys(dailyTokens).sort();
+  for (let i = 1; i < sortedDays.length; i++) {
+    const d1 = new Date(sortedDays[i]);
+    const d2 = new Date(sortedDays[i - 1]);
+    const gap = (d1 - d2) / (24 * 60 * 60 * 1000);
+    const grew = dailyTokens[sortedDays[i]] >= dailyTokens[sortedDays[i - 1]];
+
+    if (gap === 1 && grew) {
+      tempStreak++;
+      bestStreak = Math.max(bestStreak, tempStreak);
+    } else {
+      tempStreak = 0;
+    }
+  }
+
+  return { current: count, best: bestStreak, todayTokens };
 }
 
 // Estimate API cost
