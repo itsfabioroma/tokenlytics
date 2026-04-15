@@ -1,10 +1,8 @@
-import { createServer } from "http";
 import { readFile } from "fs/promises";
-import { join, dirname } from "path";
-import { fileURLToPath } from "url";
+import { join } from "path";
 import { getUsageData } from "./parser.js";
 
-const __dirname = dirname(fileURLToPath(import.meta.url));
+const __dirname = import.meta.dir;
 const PORT = process.env.PORT || 3456;
 
 // cache usage data, refresh every 30s
@@ -19,35 +17,32 @@ async function getData() {
   return cachedData;
 }
 
-const server = createServer(async (req, res) => {
-  try {
-    // API endpoint
-    if (req.url === "/api/usage") {
-      const data = await getData();
-      res.writeHead(200, { "Content-Type": "application/json" });
-      res.end(JSON.stringify(data));
-      return;
-    }
+const server = Bun.serve({
+  port: PORT,
+  async fetch(req) {
+    const url = new URL(req.url);
 
-    // force refresh
-    if (req.url === "/api/refresh") {
-      cachedData = null;
-      const data = await getData();
-      res.writeHead(200, { "Content-Type": "application/json" });
-      res.end(JSON.stringify(data));
-      return;
-    }
+    try {
+      // API endpoint
+      if (url.pathname === "/api/usage") {
+        const data = await getData();
+        return Response.json(data);
+      }
 
-    // serve dashboard
-    const html = await readFile(join(__dirname, "dashboard.html"), "utf-8");
-    res.writeHead(200, { "Content-Type": "text/html" });
-    res.end(html);
-  } catch (err) {
-    res.writeHead(500, { "Content-Type": "application/json" });
-    res.end(JSON.stringify({ error: err.message }));
-  }
+      // force refresh
+      if (url.pathname === "/api/refresh") {
+        cachedData = null;
+        const data = await getData();
+        return Response.json(data);
+      }
+
+      // serve dashboard
+      const html = await readFile(join(__dirname, "dashboard.html"), "utf-8");
+      return new Response(html, { headers: { "Content-Type": "text/html" } });
+    } catch (err) {
+      return Response.json({ error: err.message }, { status: 500 });
+    }
+  },
 });
 
-server.listen(PORT, () => {
-  console.log(`Token tracker running at http://localhost:${PORT}`);
-});
+console.log(`Tokenlytics running at http://localhost:${server.port}`);

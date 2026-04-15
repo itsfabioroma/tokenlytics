@@ -4,8 +4,8 @@
   "description": "Tokenlytics — real-time token usage analytics for Claude Code",
   "main": "server.js",
   "scripts": {
-    "start": "node server.js",
-    "dev": "node server.js --dev"
+    "start": "bun server.js",
+    "dev": "bun --watch server.js"
   },
   "type": "module"
 }
