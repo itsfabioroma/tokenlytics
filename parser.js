@@ -1,4 +1,4 @@
-import { readFile } from "fs/promises";
+import { readFile, stat } from "fs/promises";
 import { homedir } from "os";
 import { Glob } from "bun";
 
@@ -6,14 +6,19 @@ const CLAUDE_DIR = `${homedir()}/.claude`;
 const PROJECTS_DIR = `${CLAUDE_DIR}/projects`;
 const STATS_CACHE = `${CLAUDE_DIR}/stats-cache.json`;
 
-// Read stats-cache.json — same source Claude Code's /usage uses
-async function readStatsCache() {
-  const raw = await readFile(STATS_CACHE, "utf-8");
-  return JSON.parse(raw);
-}
+// per-file cache: only re-parse when mtime changes
+const fileCache = new Map();
 
-// Parse JSONL for time-windowed data (24h/7d/30d need timestamps)
+// Parse JSONL, return per-message token data
 async function parseJSONL(filePath) {
+  // check mtime — skip if unchanged
+  const info = await stat(filePath).catch(() => null);
+  if (!info) return [];
+  const mtime = info.mtimeMs;
+  const cached = fileCache.get(filePath);
+  if (cached && cached.mtime === mtime) return cached.messages;
+
+  // parse
   const content = await readFile(filePath, "utf-8");
   const lines = content.split("\n").filter(Boolean);
   const messages = [];
@@ -27,47 +32,69 @@ async function parseJSONL(filePath) {
 
       messages.push({
         timestamp: obj.timestamp,
-        tokens: (usage.input_tokens || 0) + (usage.output_tokens || 0),
+        model: obj.message.model || "unknown",
+        input: usage.input_tokens || 0,
+        output: usage.output_tokens || 0,
+        cacheRead: usage.cache_read_input_tokens || 0,
+        cacheCreation: usage.cache_creation_input_tokens || 0,
       });
     } catch {}
   }
+
+  fileCache.set(filePath, { mtime, messages });
   return messages;
 }
 
 export async function getUsageData() {
-  // all-time totals from stats-cache (matches Claude's /usage exactly)
-  const cache = await readStatsCache();
-  const modelUsage = {};
-  let allTime = 0;
-
-  for (const [model, u] of Object.entries(cache.modelUsage || {})) {
-    const total = u.inputTokens + u.outputTokens;
-    allTime += total;
-    modelUsage[model] = {
-      input: u.inputTokens,
-      output: u.outputTokens,
-      cacheRead: u.cacheReadInputTokens,
-      cacheCreation: u.cacheCreationInputTokens,
-      messages: 0,
-    };
+  // collect all messages from JSONL (incremental — only re-parses changed files)
+  const allMessages = [];
+  const glob = new Glob("**/*.jsonl");
+  for await (const path of glob.scan(PROJECTS_DIR)) {
+    const messages = await parseJSONL(`${PROJECTS_DIR}/${path}`);
+    allMessages.push(...messages);
   }
 
-  // time windows from JSONL (need timestamps)
+  // time window cutoffs
   const now = new Date();
   const cutoff24h = new Date(now - 24 * 60 * 60 * 1000).toISOString();
   const cutoff7d = new Date(now - 7 * 24 * 60 * 60 * 1000).toISOString();
   const cutoff30d = new Date(now - 30 * 24 * 60 * 60 * 1000).toISOString();
-  const windows = { last24h: 0, last7d: 0, last30d: 0, allTime };
 
-  const glob = new Glob("**/*.jsonl");
-  for await (const path of glob.scan(PROJECTS_DIR)) {
-    const messages = await parseJSONL(`${PROJECTS_DIR}/${path}`);
-    for (const msg of messages) {
-      if (msg.timestamp >= cutoff30d) windows.last30d += msg.tokens;
-      if (msg.timestamp >= cutoff7d) windows.last7d += msg.tokens;
-      if (msg.timestamp >= cutoff24h) windows.last24h += msg.tokens;
+  // aggregate
+  const modelUsage = {};
+  let jsonlTotal = 0;
+  const windows = { last24h: 0, last7d: 0, last30d: 0, allTime: 0 };
+
+  for (const msg of allMessages) {
+    const tokens = msg.input + msg.output;
+    jsonlTotal += tokens;
+
+    // time windows
+    if (msg.timestamp >= cutoff30d) windows.last30d += tokens;
+    if (msg.timestamp >= cutoff7d) windows.last7d += tokens;
+    if (msg.timestamp >= cutoff24h) windows.last24h += tokens;
+
+    // model aggregation
+    if (!modelUsage[msg.model]) {
+      modelUsage[msg.model] = { input: 0, output: 0, cacheRead: 0, cacheCreation: 0 };
     }
+    modelUsage[msg.model].input += msg.input;
+    modelUsage[msg.model].output += msg.output;
+    modelUsage[msg.model].cacheRead += msg.cacheRead;
+    modelUsage[msg.model].cacheCreation += msg.cacheCreation;
   }
+
+  // all-time = max of JSONL total vs stats-cache total (stats-cache may include unflushed data)
+  let statsCacheTotal = 0;
+  try {
+    const raw = await readFile(STATS_CACHE, "utf-8");
+    const cache = JSON.parse(raw);
+    for (const u of Object.values(cache.modelUsage || {})) {
+      statsCacheTotal += (u.inputTokens || 0) + (u.outputTokens || 0);
+    }
+  } catch {}
+
+  windows.allTime = Math.max(jsonlTotal, statsCacheTotal);
 
   const estimatedCost = estimateCost(modelUsage);
 

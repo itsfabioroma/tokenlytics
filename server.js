@@ -5,10 +5,10 @@ import { getUsageData } from "./parser.js";
 const __dirname = import.meta.dir;
 const PORT = process.env.PORT || 3456;
 
-// cache usage data, refresh every 5s
+// cache usage data, refresh every 2s (file mtime cache makes re-parse cheap)
 let cachedData = null;
 let lastFetch = 0;
-const CACHE_TTL = 5_000;
+const CACHE_TTL = 2_000;
 
 async function getData() {
   if (cachedData && Date.now() - lastFetch < CACHE_TTL) return cachedData;
