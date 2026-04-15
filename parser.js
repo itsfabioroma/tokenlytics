@@ -1,9 +1,9 @@
-import { readdir, readFile, stat } from "fs/promises";
-import { join, basename } from "path";
+import { readFile } from "fs/promises";
+import { basename } from "path";
 import { homedir } from "os";
+import { Glob } from "bun";
 
-const CLAUDE_DIR = join(homedir(), ".claude");
-const PROJECTS_DIR = join(CLAUDE_DIR, "projects");
+const PROJECTS_DIR = `${homedir()}/.claude/projects`;
 
 // Parse a single JSONL file, extracting token usage per assistant message
 async function parseJSONL(filePath) {
@@ -36,67 +36,13 @@ async function parseJSONL(filePath) {
   return messages;
 }
 
-// Discover all JSONL files across projects
+// Find all JSONL files recursively
 async function findJSONLFiles() {
+  const glob = new Glob("**/*.jsonl");
   const files = [];
-
-  try {
-    const projects = await readdir(PROJECTS_DIR);
-
-    for (const project of projects) {
-      const projectDir = join(PROJECTS_DIR, project);
-      const projectStat = await stat(projectDir).catch(() => null);
-      if (!projectStat?.isDirectory()) continue;
-
-      // scan top-level JSONL files
-      const entries = await readdir(projectDir).catch(() => []);
-      for (const entry of entries) {
-        if (entry.endsWith(".jsonl")) {
-          files.push({
-            path: join(projectDir, entry),
-            project: project.replace(/-Users-fabioroma-Code-?/, "").replace(/-/g, "/"),
-            sessionId: basename(entry, ".jsonl"),
-          });
-        }
-
-        // scan subagent JSONLs
-        if (entry === "subagents" || entry.match(/^[0-9a-f-]+$/)) {
-          const subDir = join(projectDir, entry);
-          const subStat = await stat(subDir).catch(() => null);
-          if (!subStat?.isDirectory()) continue;
-
-          const subEntries = await readdir(subDir).catch(() => []);
-          for (const sub of subEntries) {
-            if (sub.endsWith(".jsonl")) {
-              files.push({
-                path: join(subDir, sub),
-                project: project.replace(/-Users-fabioroma-Code-?/, "").replace(/-/g, "/"),
-                sessionId: basename(sub, ".jsonl"),
-              });
-            }
-
-            // nested subagents dir inside session dir
-            if (sub === "subagents") {
-              const nestedDir = join(subDir, sub);
-              const nestedEntries = await readdir(nestedDir).catch(() => []);
-              for (const nested of nestedEntries) {
-                if (nested.endsWith(".jsonl")) {
-                  files.push({
-                    path: join(nestedDir, nested),
-                    project: project.replace(/-Users-fabioroma-Code-?/, "").replace(/-/g, "/"),
-                    sessionId: basename(nested, ".jsonl"),
-                  });
-                }
-              }
-            }
-          }
-        }
-      }
-    }
-  } catch (err) {
-    console.error("Error scanning projects:", err.message);
+  for await (const path of glob.scan(PROJECTS_DIR)) {
+    files.push(`${PROJECTS_DIR}/${path}`);
   }
-
   return files;
 }
 
@@ -106,10 +52,7 @@ export async function getUsageData() {
   const allMessages = [];
 
   for (const file of jsonlFiles) {
-    const messages = await parseJSONL(file.path);
-    for (const msg of messages) {
-      msg.project = file.project;
-    }
+    const messages = await parseJSONL(file);
     allMessages.push(...messages);
   }
 
@@ -123,11 +66,12 @@ export async function getUsageData() {
   const cutoff30d = new Date(now - 30 * 24 * 60 * 60 * 1000).toISOString();
 
   // aggregate by model + time windows
+  // tokens = input + output only (matches Claude Code's /usage count)
   const modelUsage = {};
   const windows = { last24h: 0, last7d: 0, last30d: 0, allTime: 0 };
 
   for (const msg of allMessages) {
-    const total = msg.inputTokens + msg.outputTokens + msg.cacheReadTokens + msg.cacheCreationTokens;
+    const total = msg.inputTokens + msg.outputTokens;
 
     if (!modelUsage[msg.model]) {
       modelUsage[msg.model] = { input: 0, output: 0, cacheRead: 0, cacheCreation: 0, messages: 0 };
