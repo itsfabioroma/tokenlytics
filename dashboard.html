@@ -53,6 +53,7 @@
       margin-top: 6px;
       font-variant-numeric: tabular-nums;
     }
+    .hero .spark { margin-top: 16px; }
     .up { color: #34d399; }
     .down { color: #ef4444; }
     .flat { color: #555; }
@@ -67,15 +68,16 @@
       display: flex;
       justify-content: space-between;
       align-items: center;
-      padding: 6px 0;
+      padding: 8px 0;
       font-size: 13px;
       border-bottom: 1px solid #151515;
     }
     .row:last-child { border: none; }
-    .row .label { color: #555; }
-    .row .right { display: flex; gap: 16px; align-items: center; }
+    .row .label { color: #555; min-width: 60px; }
+    .row .mid { flex: 1; padding: 0 12px; }
+    .row .right { display: flex; gap: 12px; align-items: center; }
     .row .val { color: #999; font-variant-numeric: tabular-nums; }
-    .row .trend { font-size: 11px; width: 70px; text-align: right; }
+    .row .trend { font-size: 11px; width: 60px; text-align: right; }
 
     /* sections */
     .section {
@@ -140,12 +142,14 @@
       <div class="label">last 24 hours</div>
       <div class="value" id="last24h">...</div>
       <div class="trend" id="trend24h"></div>
+      <div class="spark" id="spark24h"></div>
     </div>
 
     <!-- other windows -->
     <div class="windows">
       <div class="row">
         <span class="label">last 7d</span>
+        <div class="mid" id="spark7d"></div>
         <div class="right">
           <span class="val" id="last7d">-</span>
           <span class="trend" id="trend7d"></span>
@@ -153,6 +157,7 @@
       </div>
       <div class="row">
         <span class="label">last 30d</span>
+        <div class="mid" id="spark30d"></div>
         <div class="right">
           <span class="val" id="last30d">-</span>
           <span class="trend" id="trend30d"></span>
@@ -160,20 +165,10 @@
       </div>
       <div class="row">
         <span class="label">all time</span>
+        <div class="mid"></div>
         <div class="right">
           <span class="val" id="allTime">-</span>
-          <span class="trend" style="width:70px"></span>
-        </div>
-      </div>
-    </div>
-
-    <!-- streak -->
-    <div class="section" id="streakSection">
-      <div style="display:flex;align-items:center;gap:12px">
-        <span id="streakFire" style="font-size:32px;line-height:1">🔥</span>
-        <div>
-          <div style="font-size:24px;font-weight:700;color:#fff;font-variant-numeric:tabular-nums"><span id="streakCount">0</span> day streak</div>
-          <div style="font-size:11px;color:#555;margin-top:2px">best: <span id="streakBest">0</span>d &middot; today: <span id="streakToday">0</span> tokens</div>
+          <span class="trend" style="width:60px"></span>
         </div>
       </div>
     </div>
@@ -190,6 +185,22 @@
   <script>
     const f = n => n.toLocaleString();
 
+    // SVG sparkline from data array
+    function sparkline(data, width, height, color) {
+      if (!data || !data.length) return '';
+      const max = Math.max(...data) || 1;
+      const step = width / (data.length - 1);
+      const points = data.map((v, i) => `${(i * step).toFixed(1)},${(height - (v / max) * height * 0.85).toFixed(1)}`).join(' ');
+
+      // fill area
+      const fillPoints = `0,${height} ${points} ${width},${height}`;
+
+      return `<svg width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" style="display:block">
+        <polygon points="${fillPoints}" fill="${color}" opacity="0.15"/>
+        <polyline points="${points}" fill="none" stroke="${color}" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round"/>
+      </svg>`;
+    }
+
     // trend: compare current vs previous period
     function trendStr(current, previous) {
       if (!previous) return '<span class="flat">—</span>';
@@ -205,26 +216,23 @@
         const res = await fetch('/api/usage');
         const d = await res.json();
         const w = d.windows;
+        const s = d.sparklines;
 
         // hero
         document.getElementById('last24h').textContent = f(w.last24h);
         document.getElementById('trend24h').innerHTML = 'vs prev 24h: ' + trendStr(w.last24h, w.prev24h);
+        document.getElementById('spark24h').innerHTML = sparkline(s.last24h, 576, 40, '#34d399');
 
-        // windows
+        // windows with inline sparklines
         document.getElementById('last7d').textContent = f(w.last7d);
         document.getElementById('trend7d').innerHTML = trendStr(w.last7d, w.prev7d);
+        document.getElementById('spark7d').innerHTML = sparkline(s.last7d, 200, 24, '#34d399');
+
         document.getElementById('last30d').textContent = f(w.last30d);
         document.getElementById('trend30d').innerHTML = trendStr(w.last30d, w.prev30d);
-        document.getElementById('allTime').textContent = f(w.allTime);
+        document.getElementById('spark30d').innerHTML = sparkline(s.last30d, 200, 24, '#34d399');
 
-        // streak
-        const s = d.streak;
-        document.getElementById('streakCount').textContent = s.current;
-        document.getElementById('streakBest').textContent = s.best;
-        document.getElementById('streakToday').textContent = f(s.todayTokens);
-        // fire intensity: more flames for longer streaks
-        const flames = s.current >= 7 ? '🔥🔥🔥' : s.current >= 3 ? '🔥🔥' : s.current >= 1 ? '🔥' : '❄️';
-        document.getElementById('streakFire').textContent = flames;
+        document.getElementById('allTime').textContent = f(w.allTime);
 
         // models
         const models = Object.entries(d.modelUsage)

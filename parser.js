@@ -64,9 +64,13 @@ export async function getUsageData() {
   const cutoffPrev7d = new Date(now - ms(24 * 14)).toISOString();
   const cutoffPrev30d = new Date(now - ms(24 * 60)).toISOString();
 
+  // sparkline buckets: 24h=hourly(24), 7d=daily(7), 30d=daily(30)
+  const spark24h = new Array(24).fill(0);
+  const spark7d = new Array(7).fill(0);
+  const spark30d = new Array(30).fill(0);
+
   // aggregate
   const modelUsage = {};
-  const dailyTokens = {};
   let jsonlTotal = 0;
   const windows = {
     last24h: 0, last7d: 0, last30d: 0, allTime: 0,
@@ -76,20 +80,24 @@ export async function getUsageData() {
   for (const msg of allMessages) {
     const tokens = msg.input + msg.output;
     jsonlTotal += tokens;
-
-    // daily aggregation for streak
-    const day = msg.timestamp?.slice(0, 10);
-    if (day) dailyTokens[day] = (dailyTokens[day] || 0) + tokens;
+    const msgTime = new Date(msg.timestamp);
+    const hoursAgo = (now - msgTime) / (60 * 60 * 1000);
+    const daysAgo = hoursAgo / 24;
 
     // current windows
     if (msg.timestamp >= cutoff30d) windows.last30d += tokens;
     if (msg.timestamp >= cutoff7d) windows.last7d += tokens;
     if (msg.timestamp >= cutoff24h) windows.last24h += tokens;
 
-    // previous period
+    // previous period (e.g. prev24h = 48h ago to 24h ago)
     if (msg.timestamp >= cutoffPrev24h && msg.timestamp < cutoff24h) windows.prev24h += tokens;
     if (msg.timestamp >= cutoffPrev7d && msg.timestamp < cutoff7d) windows.prev7d += tokens;
     if (msg.timestamp >= cutoffPrev30d && msg.timestamp < cutoff30d) windows.prev30d += tokens;
+
+    // sparkline buckets (index 0 = oldest, last = most recent)
+    if (hoursAgo < 24) spark24h[23 - Math.floor(hoursAgo)] += tokens;
+    if (daysAgo < 7) spark7d[6 - Math.floor(daysAgo)] += tokens;
+    if (daysAgo < 30) spark30d[29 - Math.floor(daysAgo)] += tokens;
 
     // model aggregation
     if (!modelUsage[msg.model]) {
@@ -101,9 +109,6 @@ export async function getUsageData() {
     modelUsage[msg.model].cacheCreation += msg.cacheCreation;
     modelUsage[msg.model].messages += 1;
   }
-
-  // streak: consecutive days where tokens > previous day (walking backward from today)
-  const streak = computeStreak(dailyTokens);
 
   // all-time from stats-cache (matches Claude /usage)
   let statsCacheTotal = 0;
@@ -118,55 +123,9 @@ export async function getUsageData() {
 
   const estimatedCost = estimateCost(modelUsage);
 
-  return { windows, modelUsage, estimatedCost, streak, lastUpdated: new Date().toISOString() };
-}
+  const sparklines = { last24h: spark24h, last7d: spark7d, last30d: spark30d };
 
-// Streak: consecutive days (from today backward) where usage > previous day
-function computeStreak(dailyTokens) {
-  const today = new Date().toISOString().slice(0, 10);
-  const days = Object.keys(dailyTokens).sort().reverse();
-
-  // today counts as active if any tokens
-  let count = 0;
-  let bestStreak = 0;
-  let todayTokens = dailyTokens[today] || 0;
-
-  // walk backward from most recent day
-  for (let i = 0; i < days.length - 1; i++) {
-    const current = dailyTokens[days[i]];
-    const previous = dailyTokens[days[i + 1]] || 0;
-
-    // check days are consecutive
-    const d1 = new Date(days[i]);
-    const d2 = new Date(days[i + 1]);
-    const gap = (d1 - d2) / (24 * 60 * 60 * 1000);
-
-    if (gap > 1) break;
-    if (current >= previous) {
-      count++;
-    } else {
-      break;
-    }
-  }
-
-  // find longest streak ever
-  let tempStreak = 0;
-  const sortedDays = Object.keys(dailyTokens).sort();
-  for (let i = 1; i < sortedDays.length; i++) {
-    const d1 = new Date(sortedDays[i]);
-    const d2 = new Date(sortedDays[i - 1]);
-    const gap = (d1 - d2) / (24 * 60 * 60 * 1000);
-    const grew = dailyTokens[sortedDays[i]] >= dailyTokens[sortedDays[i - 1]];
-
-    if (gap === 1 && grew) {
-      tempStreak++;
-      bestStreak = Math.max(bestStreak, tempStreak);
-    } else {
-      tempStreak = 0;
-    }
-  }
-
-  return { current: count, best: bestStreak, todayTokens };
+  return { windows, sparklines, modelUsage, estimatedCost, lastUpdated: new Date().toISOString() };
 }
 
 // Estimate API cost
