@@ -45,20 +45,20 @@ async function parseJSONL(filePath) {
 }
 
 export async function getUsageData() {
-  // global dedup across all files (Claude writes dupes during streaming + subagent re-emit)
-  const seen = new Set();
-  const allMessages = [];
+  // last-entry-wins dedup: Claude writes streaming progress, last entry = final token count
+  const lastSeen = new Map();
   const glob = new Glob("**/*.jsonl");
   for await (const path of glob.scan(PROJECTS_DIR)) {
     const entries = await parseJSONL(`${PROJECTS_DIR}/${path}`);
     for (const entry of entries) {
       if (entry.dedupKey) {
-        if (seen.has(entry.dedupKey)) continue;
-        seen.add(entry.dedupKey);
+        lastSeen.set(entry.dedupKey, entry);
+      } else {
+        lastSeen.set(`nokey-${lastSeen.size}`, entry);
       }
-      allMessages.push(entry);
     }
   }
+  const allMessages = [...lastSeen.values()];
 
   const now = new Date();
   const ms = (h) => h * 60 * 60 * 1000;
