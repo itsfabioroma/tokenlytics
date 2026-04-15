@@ -9,7 +9,7 @@ const STATS_CACHE = `${CLAUDE_DIR}/stats-cache.json`;
 // per-file cache: only re-parse when mtime changes
 const fileCache = new Map();
 
-// Parse JSONL, return raw entries (dedup happens globally in getUsageData)
+// Parse JSONL for today's data only (stats-cache covers past days)
 async function parseJSONL(filePath) {
   const info = await stat(filePath).catch(() => null);
   if (!info) return [];
@@ -44,13 +44,21 @@ async function parseJSONL(filePath) {
   return entries;
 }
 
-export async function getUsageData() {
-  // last-entry-wins dedup: Claude writes streaming progress, last entry = final token count
+// Read stats-cache — authoritative source, matches /usage exactly
+async function readStatsCache() {
+  const raw = await readFile(STATS_CACHE, "utf-8");
+  return JSON.parse(raw);
+}
+
+// Get today's tokens from JSONL (unflushed data not in stats-cache yet)
+async function getTodayFromJSONL(today) {
   const lastSeen = new Map();
   const glob = new Glob("**/*.jsonl");
+
   for await (const path of glob.scan(PROJECTS_DIR)) {
     const entries = await parseJSONL(`${PROJECTS_DIR}/${path}`);
     for (const entry of entries) {
+      if (!entry.timestamp?.startsWith(today)) continue;
       if (entry.dedupKey) {
         lastSeen.set(entry.dedupKey, entry);
       } else {
@@ -58,81 +66,89 @@ export async function getUsageData() {
       }
     }
   }
-  const allMessages = [...lastSeen.values()];
 
+  let tokens = 0;
+  const sparkHours = new Array(24).fill(0);
   const now = new Date();
-  const ms = (h) => h * 60 * 60 * 1000;
 
-  // current windows
-  const cutoff24h = new Date(now - ms(24)).toISOString();
-  const cutoff7d = new Date(now - ms(24 * 7)).toISOString();
-  const cutoff30d = new Date(now - ms(24 * 30)).toISOString();
-
-  // previous period windows (for trend comparison)
-  const cutoffPrev24h = new Date(now - ms(48)).toISOString();
-  const cutoffPrev7d = new Date(now - ms(24 * 14)).toISOString();
-  const cutoffPrev30d = new Date(now - ms(24 * 60)).toISOString();
-
-  // sparkline buckets: 24h=hourly(24), 7d=daily(7), 30d=daily(30)
-  const spark24h = new Array(24).fill(0);
-  const spark7d = new Array(7).fill(0);
-  const spark30d = new Array(30).fill(0);
-
-  // aggregate
-  const modelUsage = {};
-  let jsonlTotal = 0;
-  const windows = {
-    last24h: 0, last7d: 0, last30d: 0, allTime: 0,
-    prev24h: 0, prev7d: 0, prev30d: 0,
-  };
-
-  for (const msg of allMessages) {
-    const tokens = msg.input + msg.output;
-    jsonlTotal += tokens;
-    const msgTime = new Date(msg.timestamp);
-    const hoursAgo = (now - msgTime) / (60 * 60 * 1000);
-    const daysAgo = hoursAgo / 24;
-
-    // current windows
-    if (msg.timestamp >= cutoff30d) windows.last30d += tokens;
-    if (msg.timestamp >= cutoff7d) windows.last7d += tokens;
-    if (msg.timestamp >= cutoff24h) windows.last24h += tokens;
-
-    // previous period (e.g. prev24h = 48h ago to 24h ago)
-    if (msg.timestamp >= cutoffPrev24h && msg.timestamp < cutoff24h) windows.prev24h += tokens;
-    if (msg.timestamp >= cutoffPrev7d && msg.timestamp < cutoff7d) windows.prev7d += tokens;
-    if (msg.timestamp >= cutoffPrev30d && msg.timestamp < cutoff30d) windows.prev30d += tokens;
-
-    // sparkline buckets (index 0 = oldest, last = most recent)
-    if (hoursAgo < 24) spark24h[23 - Math.floor(hoursAgo)] += tokens;
-    if (daysAgo < 7) spark7d[6 - Math.floor(daysAgo)] += tokens;
-    if (daysAgo < 30) spark30d[29 - Math.floor(daysAgo)] += tokens;
-
-    // model aggregation
-    if (!modelUsage[msg.model]) {
-      modelUsage[msg.model] = { input: 0, output: 0, cacheRead: 0, cacheCreation: 0, messages: 0 };
+  for (const msg of lastSeen.values()) {
+    const t = msg.input + msg.output;
+    tokens += t;
+    const hoursAgo = (now - new Date(msg.timestamp)) / (60 * 60 * 1000);
+    if (hoursAgo >= 0 && hoursAgo < 24) {
+      sparkHours[23 - Math.floor(hoursAgo)] += t;
     }
-    modelUsage[msg.model].input += msg.input;
-    modelUsage[msg.model].output += msg.output;
-    modelUsage[msg.model].cacheRead += msg.cacheRead;
-    modelUsage[msg.model].cacheCreation += msg.cacheCreation;
-    modelUsage[msg.model].messages += 1;
   }
 
-  // all-time from stats-cache (matches Claude /usage)
-  let statsCacheTotal = 0;
-  try {
-    const raw = await readFile(STATS_CACHE, "utf-8");
-    const cache = JSON.parse(raw);
-    for (const u of Object.values(cache.modelUsage || {})) {
-      statsCacheTotal += (u.inputTokens || 0) + (u.outputTokens || 0);
-    }
-  } catch {}
-  windows.allTime = Math.max(jsonlTotal, statsCacheTotal);
+  return { tokens, sparkHours };
+}
+
+export async function getUsageData() {
+  const cache = await readStatsCache();
+  const now = new Date();
+  const today = now.toISOString().slice(0, 10);
+
+  // time window cutoffs
+  const cutoff24h = new Date(now - 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+  const cutoff7d = new Date(now - 7 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+  const cutoff30d = new Date(now - 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+  const cutoffPrev7d = new Date(now - 14 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+  const cutoffPrev30d = new Date(now - 60 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+
+  // aggregate from stats-cache dailyModelTokens (same source as /usage)
+  const windows = { last24h: 0, last7d: 0, last30d: 0, allTime: 0, prev7d: 0, prev30d: 0, prev24h: 0 };
+  const spark7d = new Array(7).fill(0);
+  const spark30d = new Array(30).fill(0);
+  const yesterday = new Date(now - 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+
+  for (const entry of cache.dailyModelTokens || []) {
+    const day = entry.date;
+    const tokens = Object.values(entry.tokensByModel).reduce((a, b) => a + b, 0);
+
+    // time windows
+    if (day >= cutoff7d) windows.last7d += tokens;
+    if (day >= cutoff30d) windows.last30d += tokens;
+    if (day === yesterday || day === cutoff24h) windows.prev24h += tokens;
+    if (day >= cutoffPrev7d && day < cutoff7d) windows.prev7d += tokens;
+    if (day >= cutoffPrev30d && day < cutoff30d) windows.prev30d += tokens;
+
+    // sparkline buckets
+    const daysAgo = Math.floor((now - new Date(day)) / (24 * 60 * 60 * 1000));
+    if (daysAgo >= 0 && daysAgo < 7) spark7d[6 - daysAgo] += tokens;
+    if (daysAgo >= 0 && daysAgo < 30) spark30d[29 - daysAgo] += tokens;
+  }
+
+  // add today's unflushed JSONL data
+  const todayData = await getTodayFromJSONL(today);
+  windows.last24h = todayData.tokens;
+  windows.last7d += todayData.tokens;
+  windows.last30d += todayData.tokens;
+  spark7d[6] += todayData.tokens;
+  spark30d[29] += todayData.tokens;
+
+  // all-time from modelUsage
+  for (const u of Object.values(cache.modelUsage || {})) {
+    windows.allTime += (u.inputTokens || 0) + (u.outputTokens || 0);
+  }
+  windows.allTime += todayData.tokens;
+
+  // model usage from stats-cache
+  const modelUsage = {};
+  for (const [model, u] of Object.entries(cache.modelUsage || {})) {
+    modelUsage[model] = {
+      input: u.inputTokens || 0,
+      output: u.outputTokens || 0,
+      cacheRead: u.cacheReadInputTokens || 0,
+      cacheCreation: u.cacheCreationInputTokens || 0,
+      messages: 0,
+    };
+  }
+
+  // prev24h: use the day before yesterday from stats-cache
+  // (already computed above from dailyModelTokens loop)
 
   const estimatedCost = estimateCost(modelUsage);
-
-  const sparklines = { last24h: spark24h, last7d: spark7d, last30d: spark30d };
+  const sparklines = { last24h: todayData.sparkHours, last7d: spark7d, last30d: spark30d };
 
   return { windows, sparklines, modelUsage, estimatedCost, lastUpdated: new Date().toISOString() };
 }
