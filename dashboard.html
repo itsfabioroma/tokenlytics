@@ -28,49 +28,25 @@
       white-space: pre;
     }
 
-    /* hero: last 24h */
+    /* hero */
     .hero {
       border: 1px solid #222;
       padding: 32px;
       margin-bottom: 16px;
     }
-    .hero .label {
-      font-size: 11px;
-      color: #555;
-      text-transform: uppercase;
-      letter-spacing: 2px;
-      margin-bottom: 8px;
-    }
-    .hero .value {
-      font-size: 48px;
-      font-weight: 700;
-      color: #fff;
-      letter-spacing: -1px;
-      font-variant-numeric: tabular-nums;
-    }
-    .hero .trend {
-      font-size: 13px;
-      margin-top: 6px;
-      font-variant-numeric: tabular-nums;
-    }
+    .hero .label { font-size: 11px; color: #555; text-transform: uppercase; letter-spacing: 2px; margin-bottom: 8px; }
+    .hero .value { font-size: 48px; font-weight: 700; color: #fff; letter-spacing: -1px; font-variant-numeric: tabular-nums; }
+    .hero .trend { font-size: 13px; margin-top: 6px; font-variant-numeric: tabular-nums; }
     .hero .spark { margin-top: 16px; }
     .up { color: #34d399; }
     .down { color: #ef4444; }
     .flat { color: #555; }
 
-    /* time window rows */
-    .windows {
-      border: 1px solid #222;
-      border-top: none;
-      padding: 16px 32px;
-    }
+    /* rows */
+    .windows { border: 1px solid #222; border-top: none; padding: 16px 32px; }
     .row {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      padding: 8px 0;
-      font-size: 13px;
-      border-bottom: 1px solid #151515;
+      display: flex; justify-content: space-between; align-items: center;
+      padding: 8px 0; font-size: 13px; border-bottom: 1px solid #151515;
     }
     .row:last-child { border: none; }
     .row .label { color: #555; min-width: 60px; }
@@ -80,51 +56,36 @@
     .row .trend { font-size: 11px; width: 60px; text-align: right; }
 
     /* sections */
-    .section {
-      margin-top: 24px;
-      border: 1px solid #222;
-      padding: 16px 32px;
+    .section { margin-top: 24px; border: 1px solid #222; padding: 16px 32px; }
+    .section-title { font-size: 11px; color: #555; text-transform: uppercase; letter-spacing: 2px; margin-bottom: 12px; }
+
+    /* stats grid */
+    .stats-grid {
+      display: grid; grid-template-columns: 1fr 1fr; gap: 4px 24px; font-size: 12px;
     }
-    .section-title {
-      font-size: 11px;
-      color: #555;
-      text-transform: uppercase;
-      letter-spacing: 2px;
-      margin-bottom: 12px;
+    .stats-grid .stat { display: flex; justify-content: space-between; padding: 4px 0; }
+    .stats-grid .stat .k { color: #555; }
+    .stats-grid .stat .v { color: #999; font-variant-numeric: tabular-nums; }
+    .stats-grid .stat .v.highlight { color: #c084fc; }
+
+    /* heatmap */
+    .heatmap { display: flex; flex-wrap: wrap; gap: 2px; margin-top: 8px; }
+    .heatmap-cell {
+      width: 10px; height: 10px; border-radius: 2px; background: #151515;
     }
 
     /* model bars */
-    .model {
-      padding: 8px 0;
-      border-bottom: 1px solid #151515;
-    }
+    .model { padding: 8px 0; border-bottom: 1px solid #151515; }
     .model:last-child { border: none; }
-    .model-head {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      font-size: 12px;
-    }
+    .model-head { display: flex; align-items: center; gap: 12px; font-size: 12px; }
     .model-name { width: 160px; color: #666; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .bar { flex: 1; height: 8px; background: #151515; }
     .bar-fill { height: 100%; background: #333; transition: width 0.3s; }
     .model-val { width: 120px; text-align: right; color: #666; font-variant-numeric: tabular-nums; }
-    .model-detail {
-      display: flex;
-      gap: 16px;
-      padding-left: 4px;
-      margin-top: 4px;
-      font-size: 11px;
-      color: #444;
-    }
+    .model-detail { display: flex; gap: 16px; padding-left: 4px; margin-top: 4px; font-size: 11px; color: #444; }
     .model-detail .cost { color: #c084fc; }
 
-    .footer {
-      margin-top: 24px;
-      font-size: 11px;
-      color: #333;
-      text-align: center;
-    }
+    .footer { margin-top: 24px; font-size: 11px; color: #333; text-align: center; }
     .dot { color: #34d399; animation: blink 2s infinite; }
     @keyframes blink { 0%,100% { opacity: 1; } 50% { opacity: 0.2; } }
   </style>
@@ -137,15 +98,15 @@
   ║ ║ ║╠╩╗║╣ ║║║║  ╚╦╝ ║ ║║  ╚═╗
   ╩ ╚═╝╩ ╩╚═╝╝╚╝╩═╝╩  ╩ ╩╚═╝╚═╝</div>
 
-    <!-- hero: last 24h -->
+    <!-- hero: today -->
     <div class="hero">
-      <div class="label">last 24 hours</div>
+      <div class="label">today</div>
       <div class="value" id="last24h">...</div>
       <div class="trend" id="trend24h"></div>
       <div class="spark" id="spark24h"></div>
     </div>
 
-    <!-- other windows -->
+    <!-- time windows -->
     <div class="windows">
       <div class="row">
         <span class="label">last 7d</span>
@@ -173,6 +134,18 @@
       </div>
     </div>
 
+    <!-- overview stats -->
+    <div class="section">
+      <div class="section-title">overview</div>
+      <div class="stats-grid" id="statsGrid"></div>
+    </div>
+
+    <!-- activity heatmap -->
+    <div class="section">
+      <div class="section-title">activity (last 90 days)</div>
+      <div class="heatmap" id="heatmap"></div>
+    </div>
+
     <!-- models -->
     <div class="section">
       <div class="section-title">by model</div>
@@ -185,23 +158,20 @@
   <script>
     const f = n => n.toLocaleString();
 
-    // SVG sparkline from data array
+    // SVG sparkline
     function sparkline(data, width, height, color) {
       if (!data || !data.length) return '';
       const max = Math.max(...data) || 1;
       const step = width / (data.length - 1);
       const points = data.map((v, i) => `${(i * step).toFixed(1)},${(height - (v / max) * height * 0.85).toFixed(1)}`).join(' ');
-
-      // fill area
       const fillPoints = `0,${height} ${points} ${width},${height}`;
-
       return `<svg width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" style="display:block">
         <polygon points="${fillPoints}" fill="${color}" opacity="0.15"/>
         <polyline points="${points}" fill="none" stroke="${color}" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round"/>
       </svg>`;
     }
 
-    // trend: compare current vs previous period
+    // trend arrow
     function trendStr(current, previous) {
       if (!previous) return '<span class="flat">—</span>';
       const pct = ((current - previous) / previous * 100);
@@ -209,6 +179,30 @@
       const arrow = pct > 0 ? '▲' : '▼';
       const cls = pct > 0 ? 'up' : 'down';
       return `<span class="${cls}">${arrow} ${Math.abs(pct).toFixed(0)}%</span>`;
+    }
+
+    // activity heatmap (last 90 days)
+    function renderHeatmap(heatmap) {
+      const map = new Map(heatmap.map(d => [d.date, d.messages]));
+      const now = new Date();
+      const cells = [];
+
+      for (let i = 89; i >= 0; i--) {
+        const d = new Date(now - i * 24 * 60 * 60 * 1000);
+        const dateStr = d.toISOString().slice(0, 10);
+        const msgs = map.get(dateStr) || 0;
+
+        // color intensity (4 levels like GitHub)
+        let bg = '#151515';
+        if (msgs > 0) bg = '#0e4429';
+        if (msgs > 50) bg = '#006d32';
+        if (msgs > 200) bg = '#26a641';
+        if (msgs > 500) bg = '#39d353';
+
+        cells.push(`<div class="heatmap-cell" style="background:${bg}" title="${dateStr}: ${msgs} msgs"></div>`);
+      }
+
+      document.getElementById('heatmap').innerHTML = cells.join('');
     }
 
     async function refresh() {
@@ -220,19 +214,36 @@
 
         // hero
         document.getElementById('last24h').textContent = f(w.last24h);
-        document.getElementById('trend24h').innerHTML = 'vs prev 24h: ' + trendStr(w.last24h, w.prev24h);
+        document.getElementById('trend24h').innerHTML = 'vs yesterday: ' + trendStr(w.last24h, w.prev24h);
         document.getElementById('spark24h').innerHTML = sparkline(s.last24h, 576, 40, '#34d399');
 
-        // windows with inline sparklines
+        // windows
         document.getElementById('last7d').textContent = f(w.last7d);
         document.getElementById('trend7d').innerHTML = trendStr(w.last7d, w.prev7d);
         document.getElementById('spark7d').innerHTML = sparkline(s.last7d, 200, 24, '#34d399');
-
         document.getElementById('last30d').textContent = f(w.last30d);
         document.getElementById('trend30d').innerHTML = trendStr(w.last30d, w.prev30d);
         document.getElementById('spark30d').innerHTML = sparkline(s.last30d, 200, 24, '#34d399');
-
         document.getElementById('allTime').textContent = f(w.allTime);
+
+        // overview stats
+        const ss = d.sessionStats;
+        const hours = ['12am','1am','2am','3am','4am','5am','6am','7am','8am','9am','10am','11am','12pm','1pm','2pm','3pm','4pm','5pm','6pm','7pm','8pm','9pm','10pm','11pm'];
+        document.getElementById('statsGrid').innerHTML = `
+          <div class="stat"><span class="k">sessions</span><span class="v">${f(ss.totalSessions)}</span></div>
+          <div class="stat"><span class="k">messages</span><span class="v">${f(ss.totalMessages)}</span></div>
+          <div class="stat"><span class="k">active days</span><span class="v">${ss.activeDays}</span></div>
+          <div class="stat"><span class="k">longest session</span><span class="v">${ss.longestSession || '-'}</span></div>
+          <div class="stat"><span class="k">current streak</span><span class="v highlight">${d.streaks.currentStreak}d</span></div>
+          <div class="stat"><span class="k">longest streak</span><span class="v">${d.streaks.longestStreak}d</span></div>
+          <div class="stat"><span class="k">favorite model</span><span class="v highlight">${d.favoriteModel || '-'}</span></div>
+          <div class="stat"><span class="k">peak hour</span><span class="v">${hours[d.peakHour] || '-'}</span></div>
+          <div class="stat"><span class="k">most active day</span><span class="v">${d.peakDay || '-'}</span></div>
+          <div class="stat"><span class="k">est. api cost</span><span class="v highlight">$${f(d.estimatedCost.total)}</span></div>
+        `;
+
+        // heatmap
+        renderHeatmap(d.heatmap);
 
         // models
         const models = Object.entries(d.modelUsage)
@@ -240,16 +251,12 @@
             name: name.replace('claude-', '').replace(/-\d{8}$/, ''),
             tokens: u.input + u.output,
             cost: d.estimatedCost.breakdown[name] || 0,
-            input: u.input,
-            output: u.output,
-            cacheRead: u.cacheRead,
-            messages: u.messages,
+            input: u.input, output: u.output, cacheRead: u.cacheRead, messages: u.messages,
           }))
           .filter(m => m.tokens > 0)
           .sort((a, b) => b.tokens - a.tokens);
 
         const maxTokens = models[0]?.tokens || 1;
-
         document.getElementById('modelBars').innerHTML = models.map(m => `
           <div class="model">
             <div class="model-head">
