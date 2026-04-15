@@ -116,29 +116,14 @@ export async function getUsageData() {
   // sort by timestamp
   allMessages.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
 
-  // aggregate by day
-  const dailyUsage = {};
+  // aggregate by model
   const modelUsage = {};
-  const projectUsage = {};
   let totalInput = 0;
   let totalOutput = 0;
   let totalCacheRead = 0;
   let totalCacheCreation = 0;
 
   for (const msg of allMessages) {
-    const day = msg.timestamp?.slice(0, 10) || "unknown";
-
-    // daily aggregation
-    if (!dailyUsage[day]) {
-      dailyUsage[day] = { input: 0, output: 0, cacheRead: 0, cacheCreation: 0, messages: 0 };
-    }
-    dailyUsage[day].input += msg.inputTokens;
-    dailyUsage[day].output += msg.outputTokens;
-    dailyUsage[day].cacheRead += msg.cacheReadTokens;
-    dailyUsage[day].cacheCreation += msg.cacheCreationTokens;
-    dailyUsage[day].messages += 1;
-
-    // model aggregation
     if (!modelUsage[msg.model]) {
       modelUsage[msg.model] = { input: 0, output: 0, cacheRead: 0, cacheCreation: 0, messages: 0 };
     }
@@ -148,25 +133,19 @@ export async function getUsageData() {
     modelUsage[msg.model].cacheCreation += msg.cacheCreationTokens;
     modelUsage[msg.model].messages += 1;
 
-    // project aggregation
-    if (!projectUsage[msg.project]) {
-      projectUsage[msg.project] = { input: 0, output: 0, cacheRead: 0, cacheCreation: 0, messages: 0 };
-    }
-    projectUsage[msg.project].input += msg.inputTokens;
-    projectUsage[msg.project].output += msg.outputTokens;
-    projectUsage[msg.project].cacheRead += msg.cacheReadTokens;
-    projectUsage[msg.project].cacheCreation += msg.cacheCreationTokens;
-    projectUsage[msg.project].messages += 1;
-
-    // totals
     totalInput += msg.inputTokens;
     totalOutput += msg.outputTokens;
     totalCacheRead += msg.cacheReadTokens;
     totalCacheCreation += msg.cacheCreationTokens;
   }
 
-  // estimate cost (API pricing for reference, subscription = flat rate)
   const estimatedCost = estimateCost(modelUsage);
+  const totalMessages = allMessages.length;
+  const totalSessions = new Set(allMessages.map((m) => m.sessionId)).size;
+
+  // subscription info
+  const firstDate = allMessages[0]?.timestamp?.slice(0, 10) || "unknown";
+  const subscription = computeSubscription(estimatedCost.total, totalMessages, firstDate);
 
   return {
     totals: {
@@ -174,14 +153,35 @@ export async function getUsageData() {
       outputTokens: totalOutput,
       cacheReadTokens: totalCacheRead,
       cacheCreationTokens: totalCacheCreation,
-      totalMessages: allMessages.length,
-      totalSessions: new Set(allMessages.map((m) => m.sessionId)).size,
+      totalMessages,
+      totalSessions,
     },
-    dailyUsage,
     modelUsage,
-    projectUsage,
     estimatedCost,
+    subscription,
     lastUpdated: new Date().toISOString(),
+  };
+}
+
+// Compute subscription value
+function computeSubscription(apiCost, totalMessages, firstDate) {
+  // Max plan: $200/mo (includes Claude Code)
+  const monthlyCost = 200;
+
+  // months active (rough)
+  const start = new Date(firstDate);
+  const now = new Date();
+  const months = Math.max(1, Math.ceil((now - start) / (30 * 24 * 60 * 60 * 1000)));
+  const totalPaid = months * monthlyCost;
+
+  return {
+    plan: "Max ($200/mo)",
+    monthlyCost,
+    totalPaid,
+    months,
+    savings: Math.round(apiCost - totalPaid),
+    costPerMessage: totalMessages > 0 ? totalPaid / totalMessages : 0,
+    activeSince: firstDate,
   };
 }
 

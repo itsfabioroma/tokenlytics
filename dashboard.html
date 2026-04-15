@@ -90,10 +90,10 @@
       padding: 4px 0;
       font-size: 12px;
     }
-    .bar-label { width: 140px; color: #666; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .bar-label { width: 160px; color: #666; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .bar { flex: 1; height: 8px; background: #151515; position: relative; }
     .bar-fill { height: 100%; background: #333; transition: width 0.3s; }
-    .bar-val { width: 100px; text-align: right; color: #666; font-variant-numeric: tabular-nums; }
+    .bar-val { width: 120px; text-align: right; color: #666; font-variant-numeric: tabular-nums; }
 
     /* footer */
     .footer {
@@ -132,16 +132,20 @@
       <div class="row"><span class="label">sessions</span><span class="val" id="sessions">-</span></div>
     </div>
 
+    <!-- subscription -->
+    <div class="section">
+      <div class="section-title">subscription</div>
+      <div class="row"><span class="label">plan</span><span class="val" id="plan">-</span></div>
+      <div class="row"><span class="label">monthly cost</span><span class="val" id="subCost">-</span></div>
+      <div class="row highlight"><span class="label">savings vs api</span><span class="val" id="savings">-</span></div>
+      <div class="row"><span class="label">cost per message</span><span class="val" id="perMsg">-</span></div>
+      <div class="row"><span class="label">active since</span><span class="val" id="since">-</span></div>
+    </div>
+
     <!-- models -->
     <div class="section">
       <div class="section-title">by model</div>
       <div id="modelBars"></div>
-    </div>
-
-    <!-- projects -->
-    <div class="section">
-      <div class="section-title">by project</div>
-      <div id="projectBars"></div>
     </div>
 
     <div class="footer"><span class="dot">●</span> live &middot; refreshing every 10s</div>
@@ -167,6 +171,7 @@
         const t = d.totals;
         const total = t.inputTokens + t.outputTokens + t.cacheReadTokens + t.cacheCreationTokens;
 
+        // total + breakdown
         document.getElementById('total').textContent = f(total);
         document.getElementById('output').textContent = f(t.outputTokens);
         document.getElementById('input').textContent = f(t.inputTokens);
@@ -176,18 +181,48 @@
         document.getElementById('messages').textContent = f(t.totalMessages);
         document.getElementById('sessions').textContent = f(t.totalSessions);
 
-        // model bars
-        const models = Object.entries(d.modelUsage)
-          .map(([name, u]) => ({ name: name.replace('claude-', '').replace(/-\d{8}$/, ''), val: u.input + u.output + u.cacheRead + u.cacheCreation }))
-          .sort((a, b) => b.val - a.val);
-        if (models.length) renderBars('modelBars', models, models[0].val);
+        // subscription info
+        const sub = d.subscription;
+        document.getElementById('plan').textContent = sub.plan;
+        document.getElementById('subCost').textContent = '$' + f(sub.monthlyCost) + '/mo';
+        document.getElementById('savings').textContent = '$' + f(sub.savings);
+        document.getElementById('perMsg').textContent = '$' + sub.costPerMessage.toFixed(4);
+        document.getElementById('since').textContent = sub.activeSince;
 
-        // project bars (top 10)
-        const projects = Object.entries(d.projectUsage)
-          .map(([name, u]) => ({ name: name || '(root)', val: u.input + u.output + u.cacheRead + u.cacheCreation }))
-          .sort((a, b) => b.val - a.val)
-          .slice(0, 10);
-        if (projects.length) renderBars('projectBars', projects, projects[0].val);
+        // model bars — show tokens + cost per model
+        const models = Object.entries(d.modelUsage)
+          .map(([name, u]) => {
+            const tokens = u.input + u.output + u.cacheRead + u.cacheCreation;
+            const cost = d.estimatedCost.breakdown[name] || 0;
+            return {
+              name: name.replace('claude-', '').replace(/-\d{8}$/, ''),
+              val: tokens,
+              cost,
+              input: u.input,
+              output: u.output,
+              cacheRead: u.cacheRead,
+              messages: u.messages,
+            };
+          })
+          .sort((a, b) => b.val - a.val);
+
+        // custom render for models with more detail
+        document.getElementById('modelBars').innerHTML = models.map(m => `
+          <div style="padding:8px 0;border-bottom:1px solid #151515">
+            <div class="bar-row">
+              <span class="bar-label">${m.name}</span>
+              <div class="bar"><div class="bar-fill" style="width:${(m.val / models[0].val * 100).toFixed(1)}%"></div></div>
+              <span class="bar-val">${f(m.val)}</span>
+            </div>
+            <div style="display:flex;gap:16px;padding-left:4px;margin-top:4px;font-size:11px;color:#444">
+              <span>out: ${f(m.output)}</span>
+              <span>in: ${f(m.input)}</span>
+              <span>cache: ${f(m.cacheRead)}</span>
+              <span>msgs: ${f(m.messages)}</span>
+              <span style="color:#c084fc">$${f(m.cost)}</span>
+            </div>
+          </div>
+        `).join('');
       } catch {}
     }
 
