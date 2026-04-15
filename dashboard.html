@@ -26,7 +26,8 @@
       line-height: 1.3;
       margin-bottom: 32px;
       white-space: pre;
-      text-align: center;
+      display: flex;
+      justify-content: center;
     }
 
     /* hero */
@@ -148,17 +149,54 @@ o-O-o  o-o  o  o o--o o   o o    o   o o-O-o o-O-o   o-o  o-o
 
   <script>
     const f = n => n.toLocaleString();
+    const tokenLabel = n => `${f(n)} token${n === 1 ? '' : 's'}`;
+    const escapeHtml = (value) => String(value)
+      .replaceAll('&', '&amp;')
+      .replaceAll('<', '&lt;')
+      .replaceAll('>', '&gt;')
+      .replaceAll('"', '&quot;')
+      .replaceAll("'", '&#39;');
+
+    function buildHourlyLabels(length) {
+      const now = new Date();
+      now.setMinutes(0, 0, 0);
+      return Array.from({ length }, (_, i) => {
+        const date = new Date(now);
+        date.setHours(now.getHours() - (length - 1 - i));
+        return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      });
+    }
+
+    function buildDailyLabels(length) {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      return Array.from({ length }, (_, i) => {
+        const date = new Date(today);
+        date.setDate(today.getDate() - (length - 1 - i));
+        return date.toLocaleDateString([], { month: 'short', day: 'numeric' });
+      });
+    }
 
     // SVG sparkline
-    function sparkline(data, width, height, color) {
+    function sparkline(data, width, height, color, labels = []) {
       if (!data || !data.length) return '';
       const max = Math.max(...data) || 1;
-      const step = width / (data.length - 1);
-      const points = data.map((v, i) => `${(i * step).toFixed(1)},${(height - (v / max) * height * 0.85).toFixed(1)}`).join(' ');
+      const step = data.length > 1 ? width / (data.length - 1) : 0;
+      const pointX = (i) => data.length > 1 ? i * step : width / 2;
+      const points = data.map((v, i) => `${pointX(i).toFixed(1)},${(height - (v / max) * height * 0.85).toFixed(1)}`).join(' ');
       const fillPoints = `0,${height} ${points} ${width},${height}`;
+      const hoverTargets = data.map((v, i) => {
+        const x = pointX(i);
+        const left = data.length === 1 ? 0 : (i === 0 ? 0 : x - step / 2);
+        const right = data.length === 1 ? width : (i === data.length - 1 ? width : x + step / 2);
+        const label = labels[i] || `Point ${i + 1}`;
+        return `<rect x="${left.toFixed(1)}" y="0" width="${(right - left).toFixed(1)}" height="${height}" fill="transparent" pointer-events="all"><title>${escapeHtml(label)}: ${escapeHtml(tokenLabel(v))}</title></rect>`;
+      }).join('');
+
       return `<svg width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" style="display:block">
         <polygon points="${fillPoints}" fill="${color}" opacity="0.15"/>
         <polyline points="${points}" fill="none" stroke="${color}" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round"/>
+        ${hoverTargets}
       </svg>`;
     }
 
@@ -178,19 +216,22 @@ o-O-o  o-o  o  o o--o o   o o    o   o o-O-o o-O-o   o-o  o-o
         const d = await res.json();
         const w = d.windows;
         const s = d.sparklines;
+        const labels24h = buildHourlyLabels(s.last24h.length);
+        const labels7d = buildDailyLabels(s.last7d.length);
+        const labels30d = buildDailyLabels(s.last30d.length);
 
         // hero
         document.getElementById('last24h').textContent = f(w.last24h);
         document.getElementById('trend24h').innerHTML = 'vs yesterday: ' + trendStr(w.last24h, w.prev24h);
-        document.getElementById('spark24h').innerHTML = sparkline(s.last24h, 576, 40, '#34d399');
+        document.getElementById('spark24h').innerHTML = sparkline(s.last24h, 576, 40, '#34d399', labels24h);
 
         // windows
         document.getElementById('last7d').textContent = f(w.last7d);
         document.getElementById('trend7d').innerHTML = trendStr(w.last7d, w.prev7d);
-        document.getElementById('spark7d').innerHTML = sparkline(s.last7d, 200, 24, '#34d399');
+        document.getElementById('spark7d').innerHTML = sparkline(s.last7d, 200, 24, '#34d399', labels7d);
         document.getElementById('last30d').textContent = f(w.last30d);
         document.getElementById('trend30d').innerHTML = trendStr(w.last30d, w.prev30d);
-        document.getElementById('spark30d').innerHTML = sparkline(s.last30d, 200, 24, '#34d399');
+        document.getElementById('spark30d').innerHTML = sparkline(s.last30d, 200, 24, '#34d399', labels30d);
         document.getElementById('allTime').textContent = f(w.allTime);
 
         // models
