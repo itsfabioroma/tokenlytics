@@ -116,14 +116,19 @@ export async function getUsageData() {
   // sort by timestamp
   allMessages.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
 
-  // aggregate by model
+  // time window cutoffs
+  const now = new Date();
+  const cutoff24h = new Date(now - 24 * 60 * 60 * 1000).toISOString();
+  const cutoff7d = new Date(now - 7 * 24 * 60 * 60 * 1000).toISOString();
+  const cutoff30d = new Date(now - 30 * 24 * 60 * 60 * 1000).toISOString();
+
+  // aggregate by model + time windows
   const modelUsage = {};
-  let totalInput = 0;
-  let totalOutput = 0;
-  let totalCacheRead = 0;
-  let totalCacheCreation = 0;
+  const windows = { last24h: 0, last7d: 0, last30d: 0, allTime: 0 };
 
   for (const msg of allMessages) {
+    const total = msg.inputTokens + msg.outputTokens + msg.cacheReadTokens + msg.cacheCreationTokens;
+
     if (!modelUsage[msg.model]) {
       modelUsage[msg.model] = { input: 0, output: 0, cacheRead: 0, cacheCreation: 0, messages: 0 };
     }
@@ -133,32 +138,18 @@ export async function getUsageData() {
     modelUsage[msg.model].cacheCreation += msg.cacheCreationTokens;
     modelUsage[msg.model].messages += 1;
 
-    totalInput += msg.inputTokens;
-    totalOutput += msg.outputTokens;
-    totalCacheRead += msg.cacheReadTokens;
-    totalCacheCreation += msg.cacheCreationTokens;
+    windows.allTime += total;
+    if (msg.timestamp >= cutoff30d) windows.last30d += total;
+    if (msg.timestamp >= cutoff7d) windows.last7d += total;
+    if (msg.timestamp >= cutoff24h) windows.last24h += total;
   }
 
   const estimatedCost = estimateCost(modelUsage);
-  const totalMessages = allMessages.length;
-  const totalSessions = new Set(allMessages.map((m) => m.sessionId)).size;
-
-  // subscription info
-  const firstDate = allMessages[0]?.timestamp?.slice(0, 10) || "unknown";
-  const subscription = computeSubscription(estimatedCost.total, totalMessages, firstDate);
 
   return {
-    totals: {
-      inputTokens: totalInput,
-      outputTokens: totalOutput,
-      cacheReadTokens: totalCacheRead,
-      cacheCreationTokens: totalCacheCreation,
-      totalMessages,
-      totalSessions,
-    },
+    windows,
     modelUsage,
     estimatedCost,
-    subscription,
     lastUpdated: new Date().toISOString(),
   };
 }

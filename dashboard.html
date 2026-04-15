@@ -117,8 +117,15 @@
 
     <!-- total tokens -->
     <div class="token-display">
-      <div class="token-label">total tokens</div>
-      <div class="token-value" id="total">...</div>
+      <div class="token-label">all time</div>
+      <div class="token-value" id="allTime">...</div>
+    </div>
+
+    <!-- time windows -->
+    <div class="breakdown">
+      <div class="row"><span class="label">last 24h</span><span class="val" id="last24h">-</span></div>
+      <div class="row"><span class="label">last 7d</span><span class="val" id="last7d">-</span></div>
+      <div class="row"><span class="label">last 30d</span><span class="val" id="last30d">-</span></div>
     </div>
 
     <!-- models -->
@@ -147,10 +154,12 @@
       try {
         const res = await fetch('/api/usage');
         const d = await res.json();
-        const t = d.totals;
-        const total = t.inputTokens + t.outputTokens + t.cacheReadTokens + t.cacheCreationTokens;
+        const w = d.windows;
 
-        document.getElementById('total').textContent = f(total);
+        document.getElementById('allTime').textContent = f(w.allTime);
+        document.getElementById('last24h').textContent = f(w.last24h);
+        document.getElementById('last7d').textContent = f(w.last7d);
+        document.getElementById('last30d').textContent = f(w.last30d);
 
         // model bars
         const models = Object.entries(d.modelUsage)
