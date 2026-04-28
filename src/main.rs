@@ -45,6 +45,9 @@ struct AppState {
     paths: Paths,
     leaderboard: Arc<Mutex<HashMap<String, LeaderboardEntry>>>,
     leaderboard_path: Arc<PathBuf>,
+    // map of lowercase name → logo URL. admin-curated, hot-reloads on edit + daemon restart.
+    badges: Arc<Mutex<HashMap<String, String>>>,
+    badges_path: Arc<PathBuf>,
     config: Arc<AppConfig>,
 }
 
@@ -420,6 +423,9 @@ fn cmd_serve(user_config: UserConfig) -> std::io::Result<()> {
     let leaderboard_path = tokenlytics_dir().join("leaderboard.json");
     let leaderboard = load_leaderboard(&leaderboard_path);
 
+    let badges_path = tokenlytics_dir().join("badges.json");
+    let badges = load_badges(&badges_path);
+
     let leaderboard_host = env::var("LEADERBOARD_HOST")
         .ok()
         .map(|v| v.trim().trim_end_matches('/').to_string())
@@ -465,6 +471,8 @@ fn cmd_serve(user_config: UserConfig) -> std::io::Result<()> {
         paths,
         leaderboard: Arc::new(Mutex::new(leaderboard)),
         leaderboard_path: Arc::new(leaderboard_path),
+        badges: Arc::new(Mutex::new(badges)),
+        badges_path: Arc::new(badges_path),
         config: Arc::new(config),
     };
 
@@ -1243,6 +1251,9 @@ fn route_get(path: &str, state: &AppState) -> HttpResponse {
 fn route_post(path: &str, head: &str, body: &[u8], state: &AppState) -> HttpResponse {
     // server mode: only public submit + admin endpoints (auth required)
     if state.config.server_mode {
+        if let Some(name) = path.strip_prefix("/api/admin/badge/") {
+            return admin_set_badge(head, state, name, body);
+        }
         return match path {
             "/api/leaderboard/submit" => leaderboard_submit(body, state),
             "/api/admin/wipe" => admin_wipe(head, state),
@@ -1261,6 +1272,9 @@ fn route_delete(path: &str, head: &str, state: &AppState) -> HttpResponse {
     // only available when an admin token is configured (server mode or local)
     if let Some(name) = path.strip_prefix("/api/admin/entry/") {
         return admin_delete_entry(head, state, name);
+    }
+    if let Some(name) = path.strip_prefix("/api/admin/badge/") {
+        return admin_remove_badge(head, state, name);
     }
     HttpResponse::json_error(404, "not found")
 }
@@ -1342,12 +1356,93 @@ fn self_update_endpoint() -> HttpResponse {
 }
 
 fn leaderboard_get(state: &AppState) -> HttpResponse {
-    let guard = match state.leaderboard.lock() {
+    let entries_guard = match state.leaderboard.lock() {
         Ok(guard) => guard,
         Err(_) => return HttpResponse::json_error(500, "leaderboard lock poisoned"),
     };
-    let entries: Vec<&LeaderboardEntry> = guard.values().collect();
-    HttpResponse::json(200, &entries)
+    let badges_guard = state.badges.lock();
+    let badges = badges_guard.as_ref().ok();
+
+    // enrich each entry with optional `badge` URL if the name is in the registry
+    let view: Vec<serde_json::Value> = entries_guard
+        .values()
+        .map(|e| {
+            let badge = badges.and_then(|b| b.get(&e.name.to_lowercase())).cloned();
+            serde_json::json!({
+                "name": e.name,
+                "last24h": e.last_24h,
+                "last7d": e.last_7d,
+                "last30d": e.last_30d,
+                "allTime": e.all_time,
+                "updatedAt": e.updated_at,
+                "badge": badge,
+            })
+        })
+        .collect();
+    HttpResponse::json(200, &view)
+}
+
+fn load_badges(path: &Path) -> HashMap<String, String> {
+    let Ok(raw) = fs::read_to_string(path) else {
+        return HashMap::new();
+    };
+    let raw_map: HashMap<String, String> = serde_json::from_str(&raw).unwrap_or_default();
+    // normalize keys to lowercase so lookup is case-insensitive
+    raw_map
+        .into_iter()
+        .map(|(k, v)| (k.to_lowercase(), v))
+        .collect()
+}
+
+fn save_badges(path: &Path, badges: &HashMap<String, String>) -> std::io::Result<()> {
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent)?;
+    }
+    let raw = serde_json::to_vec_pretty(badges)
+        .map_err(|err| std::io::Error::new(std::io::ErrorKind::Other, err))?;
+    let tmp = path.with_extension("json.tmp");
+    fs::write(&tmp, raw)?;
+    fs::rename(tmp, path)
+}
+
+fn admin_set_badge(head: &str, state: &AppState, name: &str, body: &[u8]) -> HttpResponse {
+    if let Some(resp) = require_admin(head, state) {
+        return resp;
+    }
+    #[derive(Deserialize)]
+    struct Input {
+        logo: String,
+    }
+    let input: Input = match serde_json::from_slice(body) {
+        Ok(v) => v,
+        Err(err) => return HttpResponse::json_error(400, &format!("invalid body: {err}")),
+    };
+    let logo = input.logo.trim().to_string();
+    if logo.is_empty() {
+        return HttpResponse::json_error(400, "logo url required");
+    }
+    let key = name.trim().to_lowercase();
+    let mut guard = match state.badges.lock() {
+        Ok(g) => g,
+        Err(_) => return HttpResponse::json_error(500, "lock poisoned"),
+    };
+    guard.insert(key.clone(), logo.clone());
+    let _ = save_badges(&state.badges_path, &guard);
+    HttpResponse::json_value(200, serde_json::json!({ "name": key, "logo": logo, "set": true }))
+}
+
+fn admin_remove_badge(head: &str, state: &AppState, name: &str) -> HttpResponse {
+    if let Some(resp) = require_admin(head, state) {
+        return resp;
+    }
+    let key = name.trim().to_lowercase();
+    let mut guard = match state.badges.lock() {
+        Ok(g) => g,
+        Err(_) => return HttpResponse::json_error(500, "lock poisoned"),
+    };
+    let removed = guard.remove(&key).is_some();
+    let _ = save_badges(&state.badges_path, &guard);
+    HttpResponse::json_value(200, serde_json::json!({ "name": key, "removed": removed }))
 }
 
 fn leaderboard_submit(body: &[u8], state: &AppState) -> HttpResponse {
