@@ -34,7 +34,7 @@ curl -fsSL https://ultracontext.com/tokenlytics.sh | sh
 or from source:
 
 ```bash
-cargo install --git https://github.com/itsfabioroma/tokenlytics
+cargo install --git https://github.com/ultracontext/tokenlytics
 ```
 
 ## the dashboard
