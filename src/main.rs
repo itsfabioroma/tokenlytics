@@ -29,8 +29,9 @@ const FIGLET: &str = r"o-O-o  o-o  o  o o--o o   o o    o   o o-O-o o-O-o   o-o 
 // brand colors. matches dashboard #f59e0b (claude) / #34d399 (codex).
 const COLOR_CLAUDE: u8 = 214;
 const COLOR_CODEX: u8 = 85;
-// any submit from a client below this is rejected 426. bump on breaking changes.
-const MIN_CLIENT_VERSION: &str = "0.1.0";
+// auto-sync floor: each release requires clients of its own version or newer.
+// clients below get 426 → dashboard JS auto-update.
+const MIN_CLIENT_VERSION: &str = CLIENT_VERSION;
 const UPGRADE_URL: &str = "https://ultracontext.com/tokenlytics.sh";
 const EVENT_DEBOUNCE: StdDuration = StdDuration::from_millis(150);
 const POLL_FALLBACK_INTERVAL: StdDuration = StdDuration::from_secs(1);
