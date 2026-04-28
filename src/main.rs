@@ -998,6 +998,7 @@ fn print_help() {
 }
 
 // re-runs the install script. self-overwrites the binary in place.
+// then auto-restarts the daemon: systemd if present, otherwise pidfile-managed.
 fn cmd_update() -> std::io::Result<()> {
     println!("Updating tokenlytics from {UPGRADE_URL} ...");
     println!();
@@ -1006,15 +1007,49 @@ fn cmd_update() -> std::io::Result<()> {
         .arg("-c")
         .arg(format!("curl -fsSL {UPGRADE_URL} | bash"))
         .status()?;
-    if status.success() {
-        println!();
-        println!("✓ updated. restart with: tokenlytics off && tokenlytics on");
-        Ok(())
-    } else {
+    if !status.success() {
         eprintln!("update failed (exit {:?})", status.code());
         eprintln!("if you installed from source, run: cargo install --path .");
-        Err(std::io::Error::other("update failed"))
+        return Err(std::io::Error::other("update failed"));
     }
+
+    println!();
+    println!("✓ binary updated");
+
+    // restart the daemon so the new binary is actually running
+    if is_systemd_managed() {
+        println!();
+        println!("→ restarting systemd service (sudo password may be required):");
+        let restart = Command::new("sudo")
+            .args(["systemctl", "restart", "tokenlytics"])
+            .status();
+        match restart {
+            Ok(s) if s.success() => println!("✓ tokenlytics.service restarted"),
+            _ => eprintln!(
+                "could not restart automatically. run manually:\n  sudo systemctl restart tokenlytics"
+            ),
+        }
+    } else if let Some(pid) = read_pid().filter(|p| process_alive(*p)) {
+        println!();
+        println!("→ restarting standalone daemon (pid {pid})…");
+        let _ = cmd_off();
+        thread::sleep(StdDuration::from_millis(300));
+        let cfg_path = tokenlytics_dir().join("config.toml");
+        let cfg = load_user_config(&cfg_path).unwrap_or_default();
+        match start_daemon_quietly(&cfg) {
+            Ok(new_pid) => println!("✓ daemon restarted (pid {new_pid})"),
+            Err(err) => eprintln!("could not restart daemon: {err}"),
+        }
+    } else {
+        println!();
+        println!("→ daemon not running. start with: tokenlytics on");
+    }
+    Ok(())
+}
+
+// detect a systemd-managed install. linux-only; on macOS this returns false.
+fn is_systemd_managed() -> bool {
+    Path::new("/etc/systemd/system/tokenlytics.service").exists()
 }
 
 // trim leading 'v' if present, then split major.minor.patch into u32 tuple.
