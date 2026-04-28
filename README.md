@@ -10,8 +10,6 @@
 
 tokenlytics is an open source token tracker. watches your `~/.claude` and `~/.codex` folders. all local. optionally compete with your friends to see who becomes the first token trillionaire of your feud.
 
-<p align="center">
-
 ## what you get (CLI / Web)
 
 <table align="center">
