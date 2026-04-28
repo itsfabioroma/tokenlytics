@@ -1,0 +1,53 @@
+#!/usr/bin/env bash
+# tokenlytics installer · curl -fsSL https://ultracontext.com/tokenlytics.sh | sh
+# detects OS/arch, downloads the matching binary from the latest GitHub release,
+# drops it in ~/.local/bin (override via $TOKENLYTICS_INSTALL_DIR).
+
+set -euo pipefail
+
+REPO="ultracontext/tokenlytics"
+DEST_DIR="${TOKENLYTICS_INSTALL_DIR:-$HOME/.local/bin}"
+DEST="$DEST_DIR/tokenlytics"
+
+OS="$(uname -s | tr '[:upper:]' '[:lower:]')"
+ARCH="$(uname -m)"
+case "$OS-$ARCH" in
+  darwin-arm64)              TRIPLE="aarch64-apple-darwin" ;;
+  darwin-x86_64)             TRIPLE="x86_64-apple-darwin" ;;
+  linux-x86_64|linux-amd64)  TRIPLE="x86_64-unknown-linux-gnu" ;;
+  *)
+    echo "tokenlytics: unsupported platform $OS-$ARCH" >&2
+    echo "             open an issue: https://github.com/$REPO/issues" >&2
+    exit 1
+    ;;
+esac
+
+URL="https://github.com/$REPO/releases/latest/download/tokenlytics-$TRIPLE"
+
+echo "tokenlytics: fetching $URL"
+mkdir -p "$DEST_DIR"
+
+if command -v curl >/dev/null 2>&1; then
+  curl -fsSL "$URL" -o "$DEST"
+elif command -v wget >/dev/null 2>&1; then
+  wget -q "$URL" -O "$DEST"
+else
+  echo "tokenlytics: need curl or wget" >&2
+  exit 1
+fi
+
+chmod +x "$DEST"
+
+echo "✓ tokenlytics installed at $DEST"
+
+case ":$PATH:" in
+  *":$DEST_DIR:"*) ;;
+  *)
+    echo
+    echo "  add $DEST_DIR to PATH:"
+    echo "    echo 'export PATH=\"$DEST_DIR:\$PATH\"' >> ~/.zshrc  # or ~/.bashrc"
+    ;;
+esac
+
+echo
+echo "  start: tokenlytics"
