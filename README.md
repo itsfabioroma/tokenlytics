@@ -43,7 +43,7 @@ cargo install --git https://github.com/ultracontext/tokenlytics
 http://localhost:6969
 ```
 
-live token usage with sparklines, trends, and per-model breakdown. realtime via server-sent events. opens automatically as soon as the daemon is up.
+live token usage with sparklines, trends, and per-model breakdown. realtime via server-sent events. open in your browser any time the daemon is up.
 
 when the first-run wizard asks for a port, it is for the local dashboard/API.
 
@@ -68,7 +68,7 @@ bare `tokenlytics` auto-starts the daemon if it's not running. ctrl+c on `tokenl
 opt-in. picked during the first-run wizard, changeable via `tokenlytics --reconfigure`.
 
 - **off** — just track yourself locally
-- **global** — compete with everyone running tokenlytics
+- **global** — compete with everyone running tokenlytics. live at [ultracontext.com/tokenlytics](https://ultracontext.com/tokenlytics)
 - **friends** — host or join a private leaderboard
 
 display name and token totals are the only things that leave your machine, and only if you enabled it.
@@ -107,7 +107,9 @@ every token event is mirrored into `~/.tokenlytics/usage.db` (SQLite, bundled). 
 tokenlytics update
 ```
 
-re-runs the install script and fetches the latest binary. the server enforces a minimum client version — old clients get HTTP 426 and the dashboard shows an upgrade banner.
+re-runs the install script and atomically replaces the binary in place — works on macOS and Linux, even with the daemon running.
+
+**auto-update**: each release bumps the global server's `MIN_CLIENT_VERSION` to its own version. Older clients hitting the leaderboard get HTTP 426; the dashboard then triggers `/api/self-update` on the local daemon, which fetches the new binary and re-execs itself. You see a brief "updating…" banner and the page reloads on the new version. No manual step.
 
 ## requirements
 
