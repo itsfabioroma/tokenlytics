@@ -1145,8 +1145,42 @@ fn route_get(path: &str, state: &AppState) -> HttpResponse {
 fn route_post(path: &str, body: &[u8], state: &AppState) -> HttpResponse {
     match path {
         "/api/leaderboard/submit" => leaderboard_submit(body, state),
+        "/api/self-update" => self_update_endpoint(),
         _ => HttpResponse::json_error(404, "not found"),
     }
+}
+
+// fired by the dashboard when a leaderboard submit returns 426. spawns the
+// install script in the background, then re-execs the daemon with the freshly
+// downloaded binary. responds 200 immediately so the caller doesn't hang.
+fn self_update_endpoint() -> HttpResponse {
+    thread::spawn(|| {
+        eprintln!("self-update: fetching {UPGRADE_URL}");
+        let status = Command::new("sh")
+            .arg("-c")
+            .arg(format!("curl -fsSL {UPGRADE_URL} | sh"))
+            .status();
+        match status {
+            Ok(s) if s.success() => {
+                eprintln!("self-update: install ok, re-exec'ing daemon");
+                // brief pause so the HTTP response can flush before exec
+                thread::sleep(StdDuration::from_millis(200));
+                let exe = match env::current_exe() {
+                    Ok(p) => p,
+                    Err(err) => {
+                        eprintln!("self-update: cannot locate exe: {err}");
+                        return;
+                    }
+                };
+                let args: Vec<_> = env::args().skip(1).collect();
+                let err = Command::new(&exe).args(&args).exec();
+                eprintln!("self-update: exec failed: {err}");
+            }
+            Ok(s) => eprintln!("self-update: install exited {:?}", s.code()),
+            Err(err) => eprintln!("self-update: install spawn failed: {err}"),
+        }
+    });
+    HttpResponse::json_value(200, serde_json::json!({ "status": "updating" }))
 }
 
 fn leaderboard_get(state: &AppState) -> HttpResponse {

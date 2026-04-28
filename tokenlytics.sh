@@ -27,16 +27,20 @@ URL="https://github.com/$REPO/releases/latest/download/tokenlytics-$TRIPLE"
 echo "tokenlytics: fetching $URL"
 mkdir -p "$DEST_DIR"
 
+# download to a temp path, then atomic rename so an in-place upgrade survives
+# (macOS refuses to overwrite a running executable; mv -f swaps inodes safely).
+TMP="$DEST.new"
 if command -v curl >/dev/null 2>&1; then
-  curl -fsSL "$URL" -o "$DEST"
+  curl -fsSL "$URL" -o "$TMP"
 elif command -v wget >/dev/null 2>&1; then
-  wget -q "$URL" -O "$DEST"
+  wget -q "$URL" -O "$TMP"
 else
   echo "tokenlytics: need curl or wget" >&2
   exit 1
 fi
 
-chmod +x "$DEST"
+chmod +x "$TMP"
+mv -f "$TMP" "$DEST"
 
 echo "✓ tokenlytics installed at $DEST"
 

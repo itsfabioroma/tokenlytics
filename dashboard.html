@@ -547,9 +547,10 @@ o-O-o  o-o  o  o o--o o   o o    o   o o-O-o o-O-o   o-o  o-o
           }),
         });
         if (res.status === 426) {
-          // server says we're too old — surface a banner with the upgrade command
+          // server says we're too old — surface a banner + auto-update locally
           const info = await res.json().catch(() => ({}));
           showUpgradeBanner(info);
+          triggerAutoUpdate();
         }
       } catch {}
     }
@@ -560,10 +561,21 @@ o-O-o  o-o  o  o o--o o   o o    o   o o-O-o o-O-o   o-o  o-o
       const yours = info.yourVersion || lbConfig?.clientVersion || 'unknown';
       const min = info.minVersion || '?';
       banner.innerHTML = `
-        ⚠ tokenlytics out of date · you have ${yours} · server requires ${min}<br>
-        update with: <code>tokenlytics update</code>
+        ⚠ tokenlytics out of date · auto-updating now…<br>
+        you have ${yours} · server requires ${min}
       `;
       banner.classList.add('is-visible');
+    }
+
+    let autoUpdateFired = false;
+    async function triggerAutoUpdate() {
+      if (autoUpdateFired) return;
+      autoUpdateFired = true;
+      try {
+        await fetch('/api/self-update', { method: 'POST' });
+        // give the daemon a few seconds to download + re-exec, then reload the page
+        setTimeout(() => location.reload(), 8000);
+      } catch {}
     }
 
     async function fetchLeaderboard() {
