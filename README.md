@@ -62,6 +62,9 @@ bare `tokenlytics` auto-starts the daemon if it's not running. ctrl+c on `tokenl
 
 ## leaderboard
 
+<img width="332" height="417" alt="7edfcdd5-8ea6-4fd1-8b29-fc51394c9142" src="https://github.com/user-attachments/assets/5b5a7215-3b97-41e0-b69d-3421238d8dbd" />
+
+
 opt-in. picked during the first-run wizard, changeable via `tokenlytics --reconfigure`.
 
 - **off** — just track yourself locally
