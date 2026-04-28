@@ -1,8 +1,14 @@
-<p align="center">
-  <img width="524" height="399" alt="tokenlytics dashboard" src="https://github.com/user-attachments/assets/0a2b66f8-05cf-4653-bd0e-74d00fc5676b" />
-</p>
+```
+o-O-o  o-o  o  o o--o o   o o    o   o o-O-o o-O-o   o-o  o-o
+  |   o   o | /  |    |\  | |     \ /    |     |    /    |
+  |   |   | OO   O-o  | \ | |      O     |     |   O      o-o
+  |   o   o | \  |    |  \| |      |     |     |    \        |
+  o    o-o  o  o o--o o   o O---o  o     o   o-O-o   o-o o--o
 
-<p align="center"><em>Realtime token tracker to you compete with your friends on tokenmaxing</em></p>
+                       by [ ultracontext ]
+```
+
+<h2 align="center"><em>Realtime token tracker to compete with your friends on tokenmaxing</em></h2>
 
 tokenlytics is an open source token tracker. watches your `~/.claude` and `~/.codex` folders. all local. optionally compete on tokenmaxing with your friends to see who becomes the first token trillionaire.
 
@@ -31,6 +37,15 @@ tokenlytics --version
 
 bare `tokenlytics` auto-starts the daemon if it's not running. ctrl+c on `tokenlytics on` doesn't kill it (detached via `setsid`) — only `tokenlytics off` does.
 
+## the cli
+
+bare `tokenlytics` prints a clean stats block: figlet header, table by period × source, unified sparkline of the last 24 hours.
+
+<p align="center">
+  <!-- TODO: add CLI screenshot here -->
+  <img width="640" alt="tokenlytics cli" src="" />
+</p>
+
 ## the dashboard
 
 ```
@@ -38,6 +53,10 @@ http://localhost:6969
 ```
 
 live token usage with sparklines, trends, and per-model breakdown. realtime via server-sent events. opens automatically as soon as the daemon is up.
+
+<p align="center">
+  <img width="524" height="399" alt="tokenlytics dashboard" src="https://github.com/user-attachments/assets/0a2b66f8-05cf-4653-bd0e-74d00fc5676b" />
+</p>
 
 when the first-run wizard asks for a port, it is for the local dashboard/API.
 
