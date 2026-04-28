@@ -51,6 +51,7 @@ struct AppConfig {
     name: String,
     leaderboard_host: Option<String>,
     leaderboard_enabled: bool,
+    server_mode: bool,
 }
 
 // persisted user config at ~/.tokenlytics/config.toml. created during onboarding.
@@ -420,6 +421,11 @@ fn cmd_serve(user_config: UserConfig) -> std::io::Result<()> {
             .unwrap_or(false)
         || user_config.leaderboard.enabled;
 
+    // server mode: API-only, suppresses dashboard page + auto-push of self.
+    let server_mode = env::var("LEADERBOARD_SERVER")
+        .map(|v| matches!(v.trim().to_ascii_lowercase().as_str(), "1" | "true" | "on" | "yes"))
+        .unwrap_or(false);
+
     let config = AppConfig {
         name: env::var("TOKENLYTICS_NAME")
             .ok()
@@ -429,6 +435,7 @@ fn cmd_serve(user_config: UserConfig) -> std::io::Result<()> {
             .unwrap_or_else(|| "you".to_string()),
         leaderboard_host,
         leaderboard_enabled,
+        server_mode,
     };
 
     let state = AppState {
@@ -1123,10 +1130,12 @@ fn route_get(path: &str, state: &AppState) -> HttpResponse {
         "/api/config" => HttpResponse::json_value(
             200,
             serde_json::json!({
-                "name": state.config.name,
+                // empty name in server mode → dashboard JS guard skips auto-push
+                "name": if state.config.server_mode { "" } else { state.config.name.as_str() },
                 "leaderboardHost": state.config.leaderboard_host,
                 "leaderboardEnabled": state.config.leaderboard_enabled,
                 "clientVersion": CLIENT_VERSION,
+                "serverMode": state.config.server_mode,
             }),
         ),
         "/api/version" => HttpResponse::json_value(
@@ -1138,7 +1147,26 @@ fn route_get(path: &str, state: &AppState) -> HttpResponse {
             }),
         ),
         "/api/leaderboard" => leaderboard_get(state),
-        _ => HttpResponse::html(200, DASHBOARD_HTML),
+        _ => {
+            if state.config.server_mode {
+                // public leaderboard server: hide dashboard, advertise API only
+                HttpResponse::json_value(
+                    200,
+                    serde_json::json!({
+                        "service": "tokenlytics-leaderboard",
+                        "version": CLIENT_VERSION,
+                        "endpoints": {
+                            "version": "/api/version",
+                            "config": "/api/config",
+                            "leaderboard": "/api/leaderboard",
+                            "submit": "POST /api/leaderboard/submit"
+                        }
+                    }),
+                )
+            } else {
+                HttpResponse::html(200, DASHBOARD_HTML)
+            }
+        }
     }
 }
 

@@ -58,7 +58,7 @@ After=network.target
 Type=simple
 User=$RUN_USER
 Environment="LEADERBOARD=1"
-Environment="TOKENLYTICS_NAME=server"
+Environment="LEADERBOARD_SERVER=1"
 Environment="PORT=$PORT"
 ExecStart=$BIN_PATH serve --no-setup
 Restart=always
