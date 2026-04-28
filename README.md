@@ -1,14 +1,19 @@
 ```
-o-O-o  o-o  o  o o--o o   o o    o   o o-O-o o-O-o   o-o  o-o
-  |   o   o | /  |    |\  | |     \ /    |     |    /    |
-  |   |   | OO   O-o  | \ | |      O     |     |   O      o-o
-  |   o   o | \  |    |  \| |      |     |     |    \        |
-  o    o-o  o  o o--o o   o O---o  o     o   o-O-o   o-o o--o
+                                        o-O-o  o-o  o  o o--o o   o o    o   o o-O-o o-O-o   o-o  o-o
+                                          |   o   o | /  |    |\  | |     \ /    |     |    /    |
+                                          |   |   | OO   O-o  | \ | |      O     |     |   O      o-o
+                                          |   o   o | \  |    |  \| |      |     |     |    \        |
+                                          o    o-o  o  o o--o o   o O---o  o     o   o-O-o   o-o o--o
 ```
 
 <h2 align="center"><em>Realtime token tracker to compete with your friends on tokenmaxing</em></h2>
 
 tokenlytics is an open source token tracker. watches your `~/.claude` and `~/.codex` folders. all local. optionally compete on tokenmaxing with your friends to see who becomes the first token trillionaire.
+
+<p align="center">
+
+<img width="846" height="243" alt="Screenshot 2026-04-28 at 00 43 51" src="https://github.com/user-attachments/assets/6e0287ca-6eff-4927-8749-e991ff07bdea" />
+</p>
 
 ## what you get (CLI / Web)
 
