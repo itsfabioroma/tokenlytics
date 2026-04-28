@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
-# tokenlytics VPS bootstrap — installs Rust + tokenlytics + systemd unit + Caddy reverse proxy.
+# tokenlytics VPS bootstrap — installs Rust + tokenlytics + systemd + nginx site.
+# assumes nginx is already on the box (typical Ubuntu VPS w/ certbot setup).
+# pairs with Cloudflare proxy in Flexible SSL mode (or Full w/ Origin Cert).
 #
 # usage:  sudo bash vps-deploy.sh [DOMAIN]
 # example: sudo bash vps-deploy.sh tokenlytics.ultracontext.com
@@ -20,34 +22,22 @@ fi
 
 echo ">> tokenlytics deploy"
 echo "   domain : $DOMAIN"
-echo "   port   : $PORT (localhost only, fronted by Caddy)"
+echo "   port   : $PORT (loopback only, fronted by nginx)"
 echo "   user   : $RUN_USER"
 echo
 
-# 1. system deps
-echo ">> apt update + base deps"
+# 1. base build deps (Rust needs these for rusqlite bundled + openssl-sys etc)
+echo ">> apt: build deps"
 apt-get update -qq
-apt-get install -y -qq curl build-essential pkg-config libssl-dev \
-  debian-keyring debian-archive-keyring apt-transport-https ca-certificates gnupg
+apt-get install -y -qq curl build-essential pkg-config libssl-dev ca-certificates
 
-# 2. Caddy (reverse proxy + auto TLS via Let's Encrypt)
-if ! command -v caddy >/dev/null 2>&1; then
-  echo ">> installing Caddy"
-  curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/gpg.key' \
-    | gpg --dearmor -o /usr/share/keyrings/caddy-stable-archive-keyring.gpg
-  curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/debian.deb.txt' \
-    > /etc/apt/sources.list.d/caddy-stable.list
-  apt-get update -qq
-  apt-get install -y -qq caddy
-fi
-
-# 3. Rust toolchain (as the run user, not root)
-if ! sudo -u "$RUN_USER" bash -c 'command -v cargo' >/dev/null 2>&1; then
+# 2. Rust (as the run user, not root)
+if ! sudo -u "$RUN_USER" bash -lc 'command -v cargo' >/dev/null 2>&1; then
   echo ">> installing Rust for $RUN_USER"
   sudo -u "$RUN_USER" sh -c "curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain stable"
 fi
 
-# 4. build + install tokenlytics
+# 3. build + install tokenlytics
 echo ">> cargo install tokenlytics (~3-5min first time, faster on re-runs)"
 sudo -u "$RUN_USER" bash -lc "source $HOME_DIR/.cargo/env && cargo install --git https://github.com/ultracontext/tokenlytics --force --quiet"
 
@@ -57,7 +47,7 @@ if [[ ! -x "$BIN_PATH" ]]; then
   exit 1
 fi
 
-# 5. systemd unit — daemon under the run user, restart on failure
+# 4. systemd unit — daemon under the run user, restart on failure
 echo ">> writing systemd unit"
 cat > /etc/systemd/system/tokenlytics.service <<UNIT
 [Unit]
@@ -88,39 +78,53 @@ if ! systemctl is-active --quiet tokenlytics; then
 fi
 echo "   tokenlytics: active"
 
-# 6. Caddy reverse proxy
-echo ">> writing Caddyfile"
-cat > /etc/caddy/Caddyfile <<CADDY
-$DOMAIN {
-    reverse_proxy localhost:$PORT
-}
-CADDY
+# 5. nginx site (HTTP only — Cloudflare in Flexible mode terminates TLS)
+echo ">> writing nginx site"
+cat > /etc/nginx/sites-available/tokenlytics <<NGINX
+server {
+    listen 80;
+    listen [::]:80;
+    server_name $DOMAIN;
 
-systemctl restart caddy
-sleep 2
-if ! systemctl is-active --quiet caddy; then
-  echo "caddy failed to start" >&2
-  journalctl -u caddy -n 30 --no-pager
+    # SSE-friendly: no buffering, long read timeout
+    proxy_buffering off;
+    proxy_read_timeout 24h;
+
+    location / {
+        proxy_pass http://127.0.0.1:$PORT;
+        proxy_http_version 1.1;
+        proxy_set_header Host              \$host;
+        proxy_set_header X-Real-IP         \$remote_addr;
+        proxy_set_header X-Forwarded-For   \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+    }
+}
+NGINX
+
+ln -sf /etc/nginx/sites-available/tokenlytics /etc/nginx/sites-enabled/tokenlytics
+
+if ! nginx -t 2>&1 | grep -q "successful"; then
+  echo "nginx config test failed:" >&2
+  nginx -t
   exit 1
 fi
-echo "   caddy: active"
-
-# 7. summary
-PUBLIC_IP="$(curl -fsS https://api.ipify.org 2>/dev/null || echo 'unknown')"
+systemctl reload nginx
+echo "   nginx: reloaded"
 
 echo
 echo "================================================="
 echo "✓ tokenlytics deployed"
 echo "================================================="
 echo
-echo "  url     : https://$DOMAIN"
-echo "  origin  : http://localhost:$PORT (firewalled, only via Caddy)"
-echo "  logs    : journalctl -u tokenlytics -f"
-echo "  status  : systemctl status tokenlytics"
-echo "  upgrade : re-run this script (cargo install --force)"
+echo "  domain   : https://$DOMAIN  (TLS via Cloudflare)"
+echo "  origin   : nginx :80 -> tokenlytics :$PORT (loopback)"
+echo "  logs     : journalctl -u tokenlytics -f"
+echo "  status   : systemctl status tokenlytics"
+echo "  upgrade  : sudo bash $0 $DOMAIN"
 echo
-echo "DNS check — add this A record if you haven't:"
-echo "  $DOMAIN  ->  $PUBLIC_IP"
+echo "Cloudflare SSL/TLS mode for ultracontext.com:"
+echo "  Flexible        (CF<->client HTTPS, CF<->origin HTTP)  ← simplest"
+echo "  Full / Strict   (need Cloudflare Origin Certificate on this VPS)"
 echo
 echo "smoke test:"
 echo "  curl https://$DOMAIN/api/version"
