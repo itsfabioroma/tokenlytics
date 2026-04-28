@@ -36,7 +36,8 @@
       padding: 32px;
       margin-bottom: 16px;
     }
-    .hero .label { font-size: 11px; color: #555; text-transform: uppercase; letter-spacing: 2px; margin-bottom: 8px; }
+    .hero .label { display: flex; align-items: baseline; gap: 8px; font-size: 11px; color: #555; text-transform: uppercase; letter-spacing: 2px; margin-bottom: 8px; }
+    .hero .measure { color: #3f3f3f; font-size: 9px; letter-spacing: 1px; text-transform: lowercase; }
     .hero .value { font-size: 48px; font-weight: 700; color: #fff; letter-spacing: -1px; font-variant-numeric: tabular-nums; }
     .hero .trend { font-size: 13px; margin-top: 6px; font-variant-numeric: tabular-nums; }
     .hero .spark { margin-top: 16px; }
@@ -57,9 +58,37 @@
     .row .val { color: #999; font-variant-numeric: tabular-nums; }
     .row .trend { font-size: 11px; width: 60px; text-align: right; }
 
-    /* sections */
-    .section { margin-top: 24px; border: 1px solid #222; padding: 16px 32px; }
-    .section-title { font-size: 11px; color: #555; text-transform: uppercase; letter-spacing: 2px; margin-bottom: 12px; }
+    .sparkline-shell { position: relative; width: fit-content; overflow: visible; }
+    .sparkline-svg { display: block; overflow: visible; cursor: crosshair; }
+    .sparkline-badge {
+      position: absolute;
+      top: -28px;
+      left: 0;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 8px;
+      border: 1px solid #2a2a2a;
+      border-radius: 6px;
+      background: rgba(10, 10, 10, 0.96);
+      color: #fff;
+      font-size: 11px;
+      line-height: 1;
+      white-space: nowrap;
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity 0.12s ease;
+      z-index: 2;
+    }
+    .sparkline-badge.is-visible { opacity: 1; }
+    .sparkline-badge .k {
+      color: #666;
+      font-size: 9px;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+    .sparkline-badge .v { font-variant-numeric: tabular-nums; }
+    .sparkline-badge .t { color: #777; font-size: 10px; }
 
     /* stats grid */
     .stats-grid {
@@ -76,20 +105,6 @@
       width: 10px; height: 10px; border-radius: 2px; background: #151515;
     }
 
-    /* model bars */
-    .model { padding: 8px 0; border-bottom: 1px solid #151515; }
-    .model:last-child { border: none; }
-    .model-head { display: flex; align-items: center; gap: 12px; font-size: 12px; }
-    .model-name { width: 160px; color: #666; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .bar { flex: 1; height: 8px; background: #151515; }
-    .bar-fill { height: 100%; background: #333; transition: width 0.3s; }
-    .model-val { width: 120px; text-align: right; color: #666; font-variant-numeric: tabular-nums; }
-    .model-detail { display: flex; gap: 16px; padding-left: 4px; margin-top: 4px; font-size: 11px; color: #444; }
-    .model-detail .cost { color: #c084fc; }
-
-    .footer { margin-top: 24px; font-size: 11px; color: #333; text-align: center; }
-    .dot { color: #34d399; animation: blink 2s infinite; }
-    @keyframes blink { 0%,100% { opacity: 1; } 50% { opacity: 0.2; } }
   </style>
 </head>
 <body>
@@ -102,9 +117,9 @@ o-O-o  o-o  o  o o--o o   o o    o   o o-O-o o-O-o   o-o  o-o
   |   o   o | \  |    |  \| |      |     |     |    \        |
   o    o-o  o  o o--o o   o O---o  o     o   o-O-o   o-o o--o</div>
 
-    <!-- hero: today -->
+    <!-- hero: last 24h -->
     <div class="hero">
-      <div class="label">today</div>
+      <div class="label">last 24h <span class="measure">input + output</span></div>
       <div class="value" id="last24h">...</div>
       <div class="trend" id="trend24h"></div>
       <div class="spark" id="spark24h"></div>
@@ -137,25 +152,11 @@ o-O-o  o-o  o  o o--o o   o o    o   o o-O-o o-O-o   o-o  o-o
         </div>
       </div>
     </div>
-
-    <!-- models -->
-    <div class="section">
-      <div class="section-title">by model</div>
-      <div id="modelBars"></div>
-    </div>
-
-    <div class="footer"><span class="dot">●</span> live &middot; refreshing every 3s</div>
   </div>
 
   <script>
     const f = n => n.toLocaleString();
     const tokenLabel = n => `${f(n)} token${n === 1 ? '' : 's'}`;
-    const escapeHtml = (value) => String(value)
-      .replaceAll('&', '&amp;')
-      .replaceAll('<', '&lt;')
-      .replaceAll('>', '&gt;')
-      .replaceAll('"', '&quot;')
-      .replaceAll("'", '&#39;');
 
     function buildHourlyLabels(length) {
       const now = new Date();
@@ -177,27 +178,106 @@ o-O-o  o-o  o  o o--o o   o o    o   o o-O-o o-O-o   o-o  o-o
       });
     }
 
-    // SVG sparkline
-    function sparkline(data, width, height, color, labels = []) {
-      if (!data || !data.length) return '';
+    function clamp(value, min, max) {
+      return Math.max(min, Math.min(max, value));
+    }
+
+    function getSparkPoints(data, width, height) {
       const max = Math.max(...data) || 1;
       const step = data.length > 1 ? width / (data.length - 1) : 0;
-      const pointX = (i) => data.length > 1 ? i * step : width / 2;
-      const points = data.map((v, i) => `${pointX(i).toFixed(1)},${(height - (v / max) * height * 0.85).toFixed(1)}`).join(' ');
-      const fillPoints = `0,${height} ${points} ${width},${height}`;
-      const hoverTargets = data.map((v, i) => {
-        const x = pointX(i);
-        const left = data.length === 1 ? 0 : (i === 0 ? 0 : x - step / 2);
-        const right = data.length === 1 ? width : (i === data.length - 1 ? width : x + step / 2);
-        const label = labels[i] || `Point ${i + 1}`;
-        return `<rect x="${left.toFixed(1)}" y="0" width="${(right - left).toFixed(1)}" height="${height}" fill="transparent" pointer-events="all"><title>${escapeHtml(label)}: ${escapeHtml(tokenLabel(v))}</title></rect>`;
-      }).join('');
+      return data.map((value, index) => ({
+        value,
+        x: data.length > 1 ? index * step : width / 2,
+        y: height - (value / max) * height * 0.85,
+      }));
+    }
 
-      return `<svg width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" style="display:block">
-        <polygon points="${fillPoints}" fill="${color}" opacity="0.15"/>
-        <polyline points="${points}" fill="none" stroke="${color}" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round"/>
-        ${hoverTargets}
-      </svg>`;
+    function renderSparkline(targetId, data, width, height, color, labels = []) {
+      const target = document.getElementById(targetId);
+      if (!target) return;
+      if (!data || !data.length) {
+        target.innerHTML = '';
+        return;
+      }
+
+      const points = getSparkPoints(data, width, height);
+      const linePoints = points.map(({ x, y }) => `${x.toFixed(1)},${y.toFixed(1)}`).join(' ');
+      const fillPoints = `0,${height} ${linePoints} ${width},${height}`;
+
+      target.innerHTML = `
+        <div class="sparkline-shell" style="width:${width}px">
+          <div class="sparkline-badge">
+            <span class="k">used</span>
+            <span class="v"></span>
+            <span class="t"></span>
+          </div>
+          <svg class="sparkline-svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">
+            <polygon points="${fillPoints}" fill="${color}" opacity="0.15"></polygon>
+            <polyline points="${linePoints}" fill="none" stroke="${color}" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round"></polyline>
+            <line x1="0" y1="0" x2="0" y2="${height}" stroke="${color}" stroke-opacity="0.3" stroke-width="1" visibility="hidden"></line>
+            <circle cx="0" cy="0" r="4" fill="${color}" stroke="#0a0a0a" stroke-width="1.5" visibility="hidden"></circle>
+            <rect x="0" y="0" width="${width}" height="${height}" fill="transparent"></rect>
+          </svg>
+        </div>
+      `;
+
+      const badge = target.querySelector('.sparkline-badge');
+      const badgeValue = target.querySelector('.sparkline-badge .v');
+      const badgeTime = target.querySelector('.sparkline-badge .t');
+      const svg = target.querySelector('.sparkline-svg');
+      const guide = svg.querySelector('line');
+      const dot = svg.querySelector('circle');
+
+      const showPoint = (index) => {
+        const point = points[index];
+        const label = labels[index] || '';
+
+        badgeValue.textContent = tokenLabel(point.value);
+        badgeTime.textContent = label;
+        badge.classList.add('is-visible');
+
+        guide.setAttribute('x1', point.x.toFixed(1));
+        guide.setAttribute('x2', point.x.toFixed(1));
+        guide.setAttribute('visibility', 'visible');
+
+        dot.setAttribute('cx', point.x.toFixed(1));
+        dot.setAttribute('cy', point.y.toFixed(1));
+        dot.setAttribute('visibility', 'visible');
+
+        const badgeWidth = badge.offsetWidth || 0;
+        const badgeCenter = clamp(point.x, badgeWidth / 2 + 6, width - badgeWidth / 2 - 6);
+        badge.style.left = `${badgeCenter}px`;
+        badge.style.transform = 'translateX(-50%)';
+      };
+
+      const hidePoint = () => {
+        badge.classList.remove('is-visible');
+        guide.setAttribute('visibility', 'hidden');
+        dot.setAttribute('visibility', 'hidden');
+      };
+
+      const getNearestIndex = (clientX) => {
+        const rect = svg.getBoundingClientRect();
+        const relativeX = clamp(((clientX - rect.left) / rect.width) * width, 0, width);
+        if (points.length === 1) return 0;
+        const step = width / (points.length - 1);
+        return clamp(Math.round(relativeX / step), 0, points.length - 1);
+      };
+
+      svg.addEventListener('mouseenter', (event) => showPoint(getNearestIndex(event.clientX)));
+      svg.addEventListener('mousemove', (event) => showPoint(getNearestIndex(event.clientX)));
+      svg.addEventListener('mouseleave', hidePoint);
+      svg.addEventListener('touchstart', (event) => {
+        const touch = event.touches[0];
+        if (!touch) return;
+        showPoint(getNearestIndex(touch.clientX));
+      }, { passive: true });
+      svg.addEventListener('touchmove', (event) => {
+        const touch = event.touches[0];
+        if (!touch) return;
+        showPoint(getNearestIndex(touch.clientX));
+      }, { passive: true });
+      svg.addEventListener('touchend', hidePoint, { passive: true });
     }
 
     // trend arrow
@@ -210,63 +290,113 @@ o-O-o  o-o  o  o o--o o   o o    o   o o-O-o o-O-o   o-o  o-o
       return `<span class="${cls}">${arrow} ${Math.abs(pct).toFixed(0)}%</span>`;
     }
 
+    function renderUsage(d) {
+      const w = d.windows;
+      const s = d.sparklines;
+      const labels24h = buildHourlyLabels(s.last24h.length);
+      const labels7d = buildDailyLabels(s.last7d.length);
+      const labels30d = buildDailyLabels(s.last30d.length);
+
+      // hero
+      document.getElementById('last24h').textContent = f(w.last24h);
+      document.getElementById('trend24h').innerHTML = 'vs previous 24h: ' + trendStr(w.last24h, w.prev24h);
+      renderSparkline('spark24h', s.last24h, 576, 40, '#34d399', labels24h);
+
+      // windows
+      document.getElementById('last7d').textContent = f(w.last7d);
+      document.getElementById('trend7d').innerHTML = trendStr(w.last7d, w.prev7d);
+      renderSparkline('spark7d', s.last7d, 200, 24, '#34d399', labels7d);
+      document.getElementById('last30d').textContent = f(w.last30d);
+      document.getElementById('trend30d').innerHTML = trendStr(w.last30d, w.prev30d);
+      renderSparkline('spark30d', s.last30d, 200, 24, '#34d399', labels30d);
+      document.getElementById('allTime').textContent = f(w.allTime);
+    }
+
     async function refresh() {
       try {
-        const res = await fetch('/api/usage');
-        const d = await res.json();
-        const w = d.windows;
-        const s = d.sparklines;
-        const labels24h = buildHourlyLabels(s.last24h.length);
-        const labels7d = buildDailyLabels(s.last7d.length);
-        const labels30d = buildDailyLabels(s.last30d.length);
-
-        // hero
-        document.getElementById('last24h').textContent = f(w.last24h);
-        document.getElementById('trend24h').innerHTML = 'vs yesterday: ' + trendStr(w.last24h, w.prev24h);
-        document.getElementById('spark24h').innerHTML = sparkline(s.last24h, 576, 40, '#34d399', labels24h);
-
-        // windows
-        document.getElementById('last7d').textContent = f(w.last7d);
-        document.getElementById('trend7d').innerHTML = trendStr(w.last7d, w.prev7d);
-        document.getElementById('spark7d').innerHTML = sparkline(s.last7d, 200, 24, '#34d399', labels7d);
-        document.getElementById('last30d').textContent = f(w.last30d);
-        document.getElementById('trend30d').innerHTML = trendStr(w.last30d, w.prev30d);
-        document.getElementById('spark30d').innerHTML = sparkline(s.last30d, 200, 24, '#34d399', labels30d);
-        document.getElementById('allTime').textContent = f(w.allTime);
-
-        // models
-        const models = Object.entries(d.modelUsage)
-          .map(([name, u]) => ({
-            name: name.replace('claude-', '').replace(/-\d{8}$/, ''),
-            tokens: u.input + u.output,
-            cost: d.estimatedCost.breakdown[name] || 0,
-            input: u.input, output: u.output, cacheRead: u.cacheRead, messages: u.messages,
-          }))
-          .filter(m => m.tokens > 0)
-          .sort((a, b) => b.tokens - a.tokens);
-
-        const maxTokens = models[0]?.tokens || 1;
-        document.getElementById('modelBars').innerHTML = models.map(m => `
-          <div class="model">
-            <div class="model-head">
-              <span class="model-name">${m.name}</span>
-              <div class="bar"><div class="bar-fill" style="width:${(m.tokens / maxTokens * 100).toFixed(1)}%"></div></div>
-              <span class="model-val">${f(m.tokens)}</span>
-            </div>
-            <div class="model-detail">
-              <span>out: ${f(m.output)}</span>
-              <span>in: ${f(m.input)}</span>
-              <span>cache: ${f(m.cacheRead)}</span>
-              <span>msgs: ${f(m.messages)}</span>
-              <span class="cost">$${f(m.cost)}</span>
-            </div>
-          </div>
-        `).join('');
+        const res = await fetch('/api/usage', { cache: 'no-store' });
+        renderUsage(await res.json());
       } catch {}
     }
 
-    refresh();
-    setInterval(refresh, 3_000);
+    let pollTimer = null;
+    let realtimeRetry = null;
+    let realtimeSource = null;
+    let firstRealtimeEventTimer = null;
+    let hasRealtimeRender = false;
+
+    function startPolling() {
+      if (pollTimer) return;
+      refresh();
+      pollTimer = setInterval(refresh, 1_000);
+    }
+
+    function stopPolling() {
+      if (!pollTimer) return;
+      clearInterval(pollTimer);
+      pollTimer = null;
+    }
+
+    function scheduleRealtimeRetry() {
+      if (realtimeRetry) return;
+      realtimeRetry = setTimeout(() => {
+        realtimeRetry = null;
+        startRealtime();
+      }, 5_000);
+    }
+
+    function closeRealtime() {
+      if (firstRealtimeEventTimer) {
+        clearTimeout(firstRealtimeEventTimer);
+        firstRealtimeEventTimer = null;
+      }
+      if (realtimeSource) {
+        realtimeSource.close();
+        realtimeSource = null;
+      }
+    }
+
+    function startRealtime() {
+      if (!window.EventSource) {
+        startPolling();
+        return;
+      }
+      if (realtimeSource) return;
+
+      closeRealtime();
+      hasRealtimeRender = false;
+
+      realtimeSource = new EventSource('/api/stream');
+      firstRealtimeEventTimer = setTimeout(() => {
+        if (!hasRealtimeRender) {
+          closeRealtime();
+          startPolling();
+          scheduleRealtimeRetry();
+        }
+      }, 3_000);
+
+      realtimeSource.addEventListener('usage', (event) => {
+        try {
+          renderUsage(JSON.parse(event.data));
+          hasRealtimeRender = true;
+          if (firstRealtimeEventTimer) {
+            clearTimeout(firstRealtimeEventTimer);
+            firstRealtimeEventTimer = null;
+          }
+          stopPolling();
+        } catch {}
+      });
+
+      realtimeSource.addEventListener('error', () => {
+        if (!hasRealtimeRender) {
+          closeRealtime();
+          startPolling();
+          scheduleRealtimeRetry();
+        }
+      });
+    }
+
+    startRealtime();
   </script>
 </body>
 </html>
