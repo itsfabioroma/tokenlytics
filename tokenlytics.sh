@@ -1,16 +1,17 @@
-#!/usr/bin/env bash
+#!/bin/sh
 # tokenlytics installer · curl -fsSL https://ultracontext.com/tokenlytics.sh | sh
 # detects OS/arch, downloads the matching binary from the latest GitHub release,
 # drops it in ~/.local/bin (override via $TOKENLYTICS_INSTALL_DIR).
+# POSIX sh compatible (works with dash, bash, ash, zsh).
 
-set -euo pipefail
+set -eu
 
 REPO="ultracontext/tokenlytics"
 
 # pick install dir: env override > existing tokenlytics location > ~/.local/bin
-if [[ -n "${TOKENLYTICS_INSTALL_DIR:-}" ]]; then
+if [ -n "${TOKENLYTICS_INSTALL_DIR:-}" ]; then
   DEST_DIR="$TOKENLYTICS_INSTALL_DIR"
-elif EXISTING="$(command -v tokenlytics 2>/dev/null)"; then
+elif EXISTING="$(command -v tokenlytics 2>/dev/null)" && [ -n "$EXISTING" ]; then
   DEST_DIR="$(dirname "$EXISTING")"
 else
   DEST_DIR="$HOME/.local/bin"
