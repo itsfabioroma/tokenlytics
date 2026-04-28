@@ -2,7 +2,7 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PORT="${PORT:-3456}"
+PORT="${PORT:-6969}"
 
 if ! command -v cargo >/dev/null 2>&1; then
   echo "Tokenlytics needs Rust/Cargo. Install Rust from https://rustup.rs and run ./run again." >&2
@@ -10,4 +10,4 @@ if ! command -v cargo >/dev/null 2>&1; then
 fi
 
 cd "$ROOT_DIR"
-exec env PORT="$PORT" cargo run --quiet
+exec env PORT="$PORT" cargo run --quiet -- "$@"

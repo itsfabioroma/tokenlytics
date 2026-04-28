@@ -20,15 +20,41 @@
 
     .container { max-width: 640px; width: 100%; }
 
+    /* right sidebar (plugin slot) */
+    .sidebar {
+      position: fixed;
+      top: 24px;
+      right: 24px;
+      width: 320px;
+      max-height: calc(100vh - 48px);
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+    .sidebar[hidden] { display: none; }
+    @media (max-width: 1080px) {
+      .sidebar { display: none !important; }
+    }
+
     .ascii-header {
       color: #666;
       font-size: 11px;
       line-height: 1.3;
-      margin-bottom: 32px;
+      margin-bottom: 8px;
       white-space: pre;
       display: flex;
       justify-content: center;
     }
+    .brand-credit {
+      color: #444;
+      font-size: 10px;
+      letter-spacing: 1.5px;
+      text-align: center;
+      text-transform: lowercase;
+      margin-bottom: 28px;
+    }
+    .brand-credit span { color: #777; }
 
     /* hero */
     .hero {
@@ -38,7 +64,10 @@
     }
     .hero .label { display: flex; align-items: baseline; gap: 8px; font-size: 11px; color: #555; text-transform: uppercase; letter-spacing: 2px; margin-bottom: 8px; }
     .hero .measure { color: #3f3f3f; font-size: 9px; letter-spacing: 1px; text-transform: lowercase; }
+    .hero .measure .claude { color: #f59e0b; }
+    .hero .measure .codex { color: #34d399; }
     .hero .value { font-size: 48px; font-weight: 700; color: #fff; letter-spacing: -1px; font-variant-numeric: tabular-nums; }
+    .hero .breakdown { margin-top: 2px; color: #555; font-size: 11px; font-variant-numeric: tabular-nums; }
     .hero .trend { font-size: 13px; margin-top: 6px; font-variant-numeric: tabular-nums; }
     .hero .spark { margin-top: 16px; }
     .up { color: #34d399; }
@@ -55,25 +84,28 @@
     .row .label { color: #555; min-width: 60px; }
     .row .mid { flex: 1; padding: 0 12px; }
     .row .right { display: flex; gap: 12px; align-items: center; }
+    .row .metric { min-width: 104px; display: flex; flex-direction: column; align-items: flex-end; gap: 2px; }
     .row .val { color: #999; font-variant-numeric: tabular-nums; }
+    .row .breakdown { color: #454545; font-size: 10px; font-variant-numeric: tabular-nums; white-space: nowrap; }
     .row .trend { font-size: 11px; width: 60px; text-align: right; }
 
     .sparkline-shell { position: relative; width: fit-content; overflow: visible; }
     .sparkline-svg { display: block; overflow: visible; cursor: crosshair; }
     .sparkline-badge {
       position: absolute;
-      top: -28px;
+      top: -64px;
       left: 0;
       display: flex;
-      align-items: center;
-      gap: 6px;
-      padding: 4px 8px;
+      flex-direction: column;
+      align-items: stretch;
+      gap: 4px;
+      padding: 6px 8px;
       border: 1px solid #2a2a2a;
       border-radius: 6px;
       background: rgba(10, 10, 10, 0.96);
       color: #fff;
       font-size: 11px;
-      line-height: 1;
+      line-height: 1.15;
       white-space: nowrap;
       pointer-events: none;
       opacity: 0;
@@ -81,6 +113,13 @@
       z-index: 2;
     }
     .sparkline-badge.is-visible { opacity: 1; }
+    .sparkline-badge .top,
+    .sparkline-badge .source-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+    }
     .sparkline-badge .k {
       color: #666;
       font-size: 9px;
@@ -89,6 +128,10 @@
     }
     .sparkline-badge .v { font-variant-numeric: tabular-nums; }
     .sparkline-badge .t { color: #777; font-size: 10px; }
+    .sparkline-badge .source-name { font-size: 10px; text-transform: uppercase; letter-spacing: 1px; }
+    .sparkline-badge .source-value { color: #cfcfcf; font-variant-numeric: tabular-nums; }
+    .sparkline-badge .source-name.claude { color: #f59e0b; }
+    .sparkline-badge .source-name.codex { color: #34d399; }
 
     /* stats grid */
     .stats-grid {
@@ -105,6 +148,71 @@
       width: 10px; height: 10px; border-radius: 2px; background: #151515;
     }
 
+    /* upgrade banner */
+    .upgrade-banner {
+      display: none;
+      margin-bottom: 16px;
+      padding: 12px 16px;
+      border: 1px solid #f59e0b;
+      background: rgba(245, 158, 11, 0.08);
+      color: #f59e0b;
+      font-size: 12px;
+      line-height: 1.5;
+      letter-spacing: 0.5px;
+    }
+    .upgrade-banner.is-visible { display: block; }
+    .upgrade-banner code {
+      background: #1a1a1a;
+      padding: 2px 6px;
+      border-radius: 3px;
+      color: #fbbf24;
+      font-family: inherit;
+    }
+
+    /* leaderboard plugin */
+    .plugin {
+      border: 1px solid #222;
+      padding: 16px 20px;
+      background: #0a0a0a;
+    }
+    .plugin-title {
+      font-size: 10px; color: #555; text-transform: uppercase; letter-spacing: 2px;
+      margin-bottom: 4px;
+    }
+    .lb-header {
+      display: flex; align-items: baseline; flex-wrap: wrap; gap: 8px; margin-bottom: 12px;
+    }
+    .lb-name-self {
+      color: #888; font-size: 11px; flex: 1;
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    }
+    .lb-tabs { display: flex; gap: 8px; font-size: 10px; letter-spacing: 1px; text-transform: uppercase; }
+    .lb-tab { cursor: pointer; color: #444; user-select: none; }
+    .lb-tab:hover { color: #888; }
+    .lb-tab.active { color: #c8c8c8; }
+    .lb-list { display: flex; flex-direction: column; gap: 2px; }
+    .lb-row {
+      display: flex; flex-direction: column; gap: 4px;
+      padding: 6px 0; border-bottom: 1px solid #151515;
+    }
+    .lb-row:last-child { border-bottom: none; }
+    .lb-row-top { display: flex; align-items: baseline; gap: 8px; font-size: 12px; }
+    .lb-rank { color: #555; font-variant-numeric: tabular-nums; font-size: 11px; width: 18px; }
+    .lb-name { color: #c8c8c8; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .lb-row.lb-me .lb-name,
+    .lb-row.lb-me .lb-rank { color: #f59e0b; }
+    .lb-val { color: #999; font-variant-numeric: tabular-nums; font-size: 11px; }
+    .lb-bar {
+      position: relative; height: 4px; background: #151515; border-radius: 2px; overflow: hidden;
+    }
+    .lb-bar > span {
+      display: block; height: 100%;
+      background: linear-gradient(90deg, #34d399, #f59e0b);
+      transition: width 0.4s ease;
+    }
+    .lb-empty { color: #444; font-size: 11px; padding: 12px 0; text-align: center; }
+    .lb-hint { margin-top: 12px; font-size: 9px; color: #444; letter-spacing: 1px; line-height: 1.5; }
+
   </style>
 </head>
 <body>
@@ -116,11 +224,13 @@ o-O-o  o-o  o  o o--o o   o o    o   o o-O-o o-O-o   o-o  o-o
   |   |   | OO   O-o  | \ | |      O     |     |   O      o-o
   |   o   o | \  |    |  \| |      |     |     |    \        |
   o    o-o  o  o o--o o   o O---o  o     o   o-O-o   o-o o--o</div>
+    <div class="brand-credit">by [ <span>ultracontext</span> ]</div>
 
     <!-- hero: last 24h -->
     <div class="hero">
-      <div class="label">last 24h <span class="measure">input + output</span></div>
+      <div class="label">last 24h <span class="measure">input + output · <span class="claude">claude</span> + <span class="codex">codex</span></span></div>
       <div class="value" id="last24h">...</div>
+      <div class="breakdown" id="breakdown24h"></div>
       <div class="trend" id="trend24h"></div>
       <div class="spark" id="spark24h"></div>
     </div>
@@ -131,7 +241,10 @@ o-O-o  o-o  o  o o--o o   o o    o   o o-O-o o-O-o   o-o  o-o
         <span class="label">last 7d</span>
         <div class="mid" id="spark7d"></div>
         <div class="right">
-          <span class="val" id="last7d">-</span>
+          <span class="metric">
+            <span class="val" id="last7d">-</span>
+            <span class="breakdown" id="breakdown7d"></span>
+          </span>
           <span class="trend" id="trend7d"></span>
         </div>
       </div>
@@ -139,7 +252,10 @@ o-O-o  o-o  o  o o--o o   o o    o   o o-O-o o-O-o   o-o  o-o
         <span class="label">last 30d</span>
         <div class="mid" id="spark30d"></div>
         <div class="right">
-          <span class="val" id="last30d">-</span>
+          <span class="metric">
+            <span class="val" id="last30d">-</span>
+            <span class="breakdown" id="breakdown30d"></span>
+          </span>
           <span class="trend" id="trend30d"></span>
         </div>
       </div>
@@ -147,16 +263,45 @@ o-O-o  o-o  o  o o--o o   o o    o   o o-O-o o-O-o   o-o  o-o
         <span class="label">all time</span>
         <div class="mid"></div>
         <div class="right">
-          <span class="val" id="allTime">-</span>
+          <span class="metric">
+            <span class="val" id="allTime">-</span>
+            <span class="breakdown" id="breakdownAllTime"></span>
+          </span>
           <span class="trend" style="width:60px"></span>
         </div>
       </div>
     </div>
   </div>
 
+  <!-- right sidebar: optional plugins (leaderboard, etc.) -->
+  <aside class="sidebar" id="sidebar" hidden>
+    <div class="upgrade-banner" id="upgradeBanner"></div>
+    <div class="plugin" id="leaderboardPlugin">
+      <div class="plugin-title">leaderboard</div>
+      <div class="lb-header">
+        <span class="lb-name-self" id="lbName"></span>
+        <div class="lb-tabs">
+          <span class="lb-tab" data-window="last24h">24h</span>
+          <span class="lb-tab active" data-window="last7d">7d</span>
+          <span class="lb-tab" data-window="last30d">30d</span>
+          <span class="lb-tab" data-window="allTime">all</span>
+        </div>
+      </div>
+      <div id="lbList" class="lb-list"></div>
+      <div class="lb-hint" id="lbHint"></div>
+    </div>
+  </aside>
+
   <script>
     const f = n => n.toLocaleString();
     const tokenLabel = n => `${f(n)} token${n === 1 ? '' : 's'}`;
+    const sourceColors = { claude: '#f59e0b', codex: '#34d399' };
+    const compact = n => {
+      if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(n >= 10_000_000 ? 0 : 1)}m`;
+      if (n >= 1_000) return `${(n / 1_000).toFixed(n >= 100_000 ? 0 : 1)}k`;
+      return f(n);
+    };
+    const breakdownText = parts => parts ? `in ${compact(parts.input)} · out ${compact(parts.output)}` : '';
 
     function buildHourlyLabels(length) {
       const now = new Date();
@@ -182,17 +327,33 @@ o-O-o  o-o  o  o o--o o   o o    o   o o-O-o o-O-o   o-o  o-o
       return Math.max(min, Math.min(max, value));
     }
 
+    function normalizeSparkBucket(bucket) {
+      if (typeof bucket === 'number') return { claude: bucket, codex: 0 };
+      return {
+        claude: bucket?.claude || 0,
+        codex: bucket?.codex || 0,
+      };
+    }
+
+    function bucketTotal(bucket) {
+      return bucket.claude + bucket.codex;
+    }
+
     function getSparkPoints(data, width, height) {
-      const max = Math.max(...data) || 1;
+      const buckets = data.map(normalizeSparkBucket);
+      const max = Math.max(...buckets.map(bucketTotal)) || 1;
       const step = data.length > 1 ? width / (data.length - 1) : 0;
-      return data.map((value, index) => ({
-        value,
+      const yFor = value => height - (value / max) * height * 0.85;
+      return buckets.map((bucket, index) => ({
+        ...bucket,
+        value: bucketTotal(bucket),
         x: data.length > 1 ? index * step : width / 2,
-        y: height - (value / max) * height * 0.85,
+        y: yFor(bucketTotal(bucket)),
+        claudeY: yFor(bucket.claude),
       }));
     }
 
-    function renderSparkline(targetId, data, width, height, color, labels = []) {
+    function renderSparkline(targetId, data, width, height, labels = []) {
       const target = document.getElementById(targetId);
       if (!target) return;
       if (!data || !data.length) {
@@ -201,21 +362,35 @@ o-O-o  o-o  o  o o--o o   o o    o   o o-O-o o-O-o   o-o  o-o
       }
 
       const points = getSparkPoints(data, width, height);
-      const linePoints = points.map(({ x, y }) => `${x.toFixed(1)},${y.toFixed(1)}`).join(' ');
-      const fillPoints = `0,${height} ${linePoints} ${width},${height}`;
+      const totalLine = points.map(({ x, y }) => `${x.toFixed(1)},${y.toFixed(1)}`).join(' ');
+      const claudeLine = points.map(({ x, claudeY }) => `${x.toFixed(1)},${claudeY.toFixed(1)}`).join(' ');
+      const claudeFill = `0,${height} ${claudeLine} ${width},${height}`;
+      const codexFill = `${totalLine} ${points.slice().reverse().map(({ x, claudeY }) => `${x.toFixed(1)},${claudeY.toFixed(1)}`).join(' ')}`;
 
       target.innerHTML = `
         <div class="sparkline-shell" style="width:${width}px">
           <div class="sparkline-badge">
-            <span class="k">used</span>
-            <span class="v"></span>
-            <span class="t"></span>
+            <div class="top">
+              <span class="k">used</span>
+              <span class="v"></span>
+              <span class="t"></span>
+            </div>
+            <div class="source-row">
+              <span class="source-name claude">claude</span>
+              <span class="source-value claude-value"></span>
+            </div>
+            <div class="source-row">
+              <span class="source-name codex">codex</span>
+              <span class="source-value codex-value"></span>
+            </div>
           </div>
           <svg class="sparkline-svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">
-            <polygon points="${fillPoints}" fill="${color}" opacity="0.15"></polygon>
-            <polyline points="${linePoints}" fill="none" stroke="${color}" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round"></polyline>
-            <line x1="0" y1="0" x2="0" y2="${height}" stroke="${color}" stroke-opacity="0.3" stroke-width="1" visibility="hidden"></line>
-            <circle cx="0" cy="0" r="4" fill="${color}" stroke="#0a0a0a" stroke-width="1.5" visibility="hidden"></circle>
+            <polygon points="${claudeFill}" fill="${sourceColors.claude}" opacity="0.28"></polygon>
+            <polygon points="${codexFill}" fill="${sourceColors.codex}" opacity="0.24"></polygon>
+            <polyline points="${claudeLine}" fill="none" stroke="${sourceColors.claude}" stroke-width="1.1" stroke-linejoin="round" stroke-linecap="round" opacity="0.85"></polyline>
+            <polyline points="${totalLine}" fill="none" stroke="${sourceColors.codex}" stroke-width="1.4" stroke-linejoin="round" stroke-linecap="round"></polyline>
+            <line x1="0" y1="0" x2="0" y2="${height}" stroke="${sourceColors.codex}" stroke-opacity="0.3" stroke-width="1" visibility="hidden"></line>
+            <circle cx="0" cy="0" r="4" fill="${sourceColors.codex}" stroke="#0a0a0a" stroke-width="1.5" visibility="hidden"></circle>
             <rect x="0" y="0" width="${width}" height="${height}" fill="transparent"></rect>
           </svg>
         </div>
@@ -224,6 +399,8 @@ o-O-o  o-o  o  o o--o o   o o    o   o o-O-o o-O-o   o-o  o-o
       const badge = target.querySelector('.sparkline-badge');
       const badgeValue = target.querySelector('.sparkline-badge .v');
       const badgeTime = target.querySelector('.sparkline-badge .t');
+      const claudeValue = target.querySelector('.sparkline-badge .claude-value');
+      const codexValue = target.querySelector('.sparkline-badge .codex-value');
       const svg = target.querySelector('.sparkline-svg');
       const guide = svg.querySelector('line');
       const dot = svg.querySelector('circle');
@@ -234,6 +411,8 @@ o-O-o  o-o  o  o o--o o   o o    o   o o-O-o o-O-o   o-o  o-o
 
         badgeValue.textContent = tokenLabel(point.value);
         badgeTime.textContent = label;
+        claudeValue.textContent = tokenLabel(point.claude);
+        codexValue.textContent = tokenLabel(point.codex);
         badge.classList.add('is-visible');
 
         guide.setAttribute('x1', point.x.toFixed(1));
@@ -299,18 +478,137 @@ o-O-o  o-o  o  o o--o o   o o    o   o o-O-o o-O-o   o-o  o-o
 
       // hero
       document.getElementById('last24h').textContent = f(w.last24h);
+      document.getElementById('breakdown24h').textContent = breakdownText(w.last24hBreakdown);
       document.getElementById('trend24h').innerHTML = 'vs previous 24h: ' + trendStr(w.last24h, w.prev24h);
-      renderSparkline('spark24h', s.last24h, 576, 40, '#34d399', labels24h);
+      renderSparkline('spark24h', s.last24h, 576, 40, labels24h);
 
       // windows
       document.getElementById('last7d').textContent = f(w.last7d);
+      document.getElementById('breakdown7d').textContent = breakdownText(w.last7dBreakdown);
       document.getElementById('trend7d').innerHTML = trendStr(w.last7d, w.prev7d);
-      renderSparkline('spark7d', s.last7d, 200, 24, '#34d399', labels7d);
+      renderSparkline('spark7d', s.last7d, 200, 24, labels7d);
       document.getElementById('last30d').textContent = f(w.last30d);
+      document.getElementById('breakdown30d').textContent = breakdownText(w.last30dBreakdown);
       document.getElementById('trend30d').innerHTML = trendStr(w.last30d, w.prev30d);
-      renderSparkline('spark30d', s.last30d, 200, 24, '#34d399', labels30d);
+      renderSparkline('spark30d', s.last30d, 200, 24, labels30d);
       document.getElementById('allTime').textContent = f(w.allTime);
+      document.getElementById('breakdownAllTime').textContent = breakdownText(w.allTimeBreakdown);
+
+      // leaderboard plugin sync (no-op when disabled)
+      if (lbConfig && lbConfig.leaderboardEnabled) {
+        pushLeaderboard(w).then(fetchLeaderboard);
+      }
     }
+
+    // leaderboard plugin state
+    let lbConfig = null;
+    let lbWindow = 'last7d';
+
+    function lbBase() {
+      return (lbConfig && lbConfig.leaderboardHost) ? lbConfig.leaderboardHost : '';
+    }
+
+    function escapeHtml(s) {
+      return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+    }
+
+    async function loadConfig() {
+      try {
+        const res = await fetch('/api/config', { cache: 'no-store' });
+        lbConfig = await res.json();
+      } catch {
+        return;
+      }
+      if (!lbConfig.leaderboardEnabled) return;
+
+      // reveal sidebar
+      document.getElementById('sidebar').hidden = false;
+      document.getElementById('lbName').textContent = lbConfig.name ? `you · ${lbConfig.name}` : '';
+
+      const hint = document.getElementById('lbHint');
+      hint.textContent = lbConfig.leaderboardHost
+        ? `synced via ${lbConfig.leaderboardHost}`
+        : 'local mode · set $LEADERBOARD_HOST to compete with friends';
+    }
+
+    async function pushLeaderboard(w) {
+      if (!lbConfig || !lbConfig.leaderboardEnabled || !lbConfig.name) return;
+      try {
+        const res = await fetch(`${lbBase()}/api/leaderboard/submit`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            name: lbConfig.name,
+            version: lbConfig.clientVersion,
+            last24h: w.last24h,
+            last7d: w.last7d,
+            last30d: w.last30d,
+            allTime: w.allTime,
+          }),
+        });
+        if (res.status === 426) {
+          // server says we're too old — surface a banner with the upgrade command
+          const info = await res.json().catch(() => ({}));
+          showUpgradeBanner(info);
+        }
+      } catch {}
+    }
+
+    function showUpgradeBanner(info) {
+      const banner = document.getElementById('upgradeBanner');
+      if (!banner) return;
+      const yours = info.yourVersion || lbConfig?.clientVersion || 'unknown';
+      const min = info.minVersion || '?';
+      banner.innerHTML = `
+        ⚠ tokenlytics out of date · you have ${yours} · server requires ${min}<br>
+        update with: <code>tokenlytics update</code>
+      `;
+      banner.classList.add('is-visible');
+    }
+
+    async function fetchLeaderboard() {
+      if (!lbConfig || !lbConfig.leaderboardEnabled) return;
+      try {
+        const res = await fetch(`${lbBase()}/api/leaderboard`, { cache: 'no-store' });
+        renderLeaderboard(await res.json());
+      } catch {}
+    }
+
+    function renderLeaderboard(entries) {
+      const list = document.getElementById('lbList');
+      const key = lbWindow;
+      const sorted = (entries || []).slice().sort((a, b) => (b[key] || 0) - (a[key] || 0));
+      if (!sorted.length) {
+        list.innerHTML = '<div class="lb-empty">no entries yet — your totals will show up shortly</div>';
+        return;
+      }
+      const max = sorted[0][key] || 1;
+      const myKey = (lbConfig?.name || '').toLowerCase();
+      list.innerHTML = sorted.map((entry, i) => {
+        const value = entry[key] || 0;
+        const pct = (value / max) * 100;
+        const isMe = entry.name.toLowerCase() === myKey;
+        return `
+          <div class="lb-row${isMe ? ' lb-me' : ''}">
+            <div class="lb-row-top">
+              <span class="lb-rank">${i + 1}</span>
+              <span class="lb-name">${escapeHtml(entry.name)}</span>
+              <span class="lb-val">${compact(value)}</span>
+            </div>
+            <div class="lb-bar"><span style="width:${pct.toFixed(1)}%"></span></div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    document.querySelectorAll('.lb-tab').forEach(tab => {
+      tab.addEventListener('click', () => {
+        document.querySelectorAll('.lb-tab').forEach(t => t.classList.remove('active'));
+        tab.classList.add('active');
+        lbWindow = tab.dataset.window;
+        fetchLeaderboard();
+      });
+    });
 
     async function refresh() {
       try {
@@ -395,6 +693,9 @@ o-O-o  o-o  o  o o--o o   o o    o   o o-O-o o-O-o   o-o  o-o
         }
       });
     }
+
+    loadConfig().then(fetchLeaderboard);
+    setInterval(fetchLeaderboard, 30_000);
 
     startRealtime();
   </script>

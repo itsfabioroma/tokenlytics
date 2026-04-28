@@ -1,69 +1,104 @@
-# Tokenlytics
+<p align="center">
+  <img width="524" height="399" alt="tokenlytics dashboard" src="https://github.com/user-attachments/assets/0a2b66f8-05cf-4653-bd0e-74d00fc5676b" />
+</p>
 
-<img width="524" height="399" alt="Screenshot 2026-04-28 at 00 21 06" src="https://github.com/user-attachments/assets/0a2b66f8-05cf-4653-bd0e-74d00fc5676b" />
+<p align="center"><em>Realtime token tracker to you compete with your friends on tokenmaxing</em></p>
 
+tokenlytics is an open source token tracker. watches your `~/.claude` and `~/.codex` folders. all local. optionally compete on tokenmaxing with your friends to see who becomes the first token trillionaire.
 
-Tokenlytics is a small Rust dashboard for Claude Code token usage. It reads Claude data from `~/.claude/stats-cache.json` and `~/.claude/projects/**/*.jsonl`, then serves a local dashboard and JSON endpoints.
+## install
 
-The server keeps an in-memory snapshot and runs a Rust watcher backed by OS file events (`FSEvents` on macOS, `inotify` on Linux through `notify`). When Claude writes a new JSONL line or updates the stats cache, Tokenlytics reloads the snapshot and pushes it to the dashboard over Server-Sent Events. If OS watching is unavailable, it falls back to a one-second fingerprint poll.
+```bash
+curl -fsSL https://ultracontext.com/tokenlytics.sh | sh
+```
 
-Headline token totals are `input + output`, ignore cache tokens, and deduplicate repeated Claude response records by `message.id` or `requestId`.
+or from source:
 
-The headline windows are rolling time ranges:
+```bash
+cargo install --git https://github.com/itsfabioroma/tokenlytics
+```
 
-- `last 24h` = now minus 24 hours through now
-- `last 7d` = now minus 168 hours through now
-- `last 30d` = now minus 720 hours through now
+## use it
 
-Claude Code `/stats` and `ccusage` can use different aggregation rules. Tokenlytics optimizes for internal usage tracking, not exact parity with those tools.
+```bash
+tokenlytics              # show your stats (auto-starts the daemon)
+tokenlytics on           # start the background daemon
+tokenlytics off          # stop the daemon
+tokenlytics status       # is it running?
+tokenlytics update       # fetch the latest
+tokenlytics --version
+```
 
-## Requirements
+bare `tokenlytics` auto-starts the daemon if it's not running. ctrl+c on `tokenlytics on` doesn't kill it (detached via `setsid`) — only `tokenlytics off` does.
+
+## the dashboard
+
+```
+http://localhost:6969
+```
+
+live token usage with sparklines, trends, and per-model breakdown. realtime via server-sent events. opens automatically as soon as the daemon is up.
+
+when the first-run wizard asks for a port, it is for the local dashboard/API.
+
+## leaderboard
+
+opt-in. picked during the first-run wizard, changeable via `tokenlytics --reconfigure`.
+
+- **off** — just track yourself locally
+- **global** — compete with everyone running tokenlytics
+- **friends** — host or join a private leaderboard
+
+display name and token totals are the only things that leave your machine, and only if you enabled it.
+
+## what's local, what's not
+
+|  | local | over the network |
+|---|:---:|:---:|
+| token counts | ✓ |  |
+| dashboard | ✓ |  |
+| your messages, prompts, code | ✓ |  |
+| display name + totals |  | leaderboard server (if enabled) |
+
+if leaderboard is off, **nothing** leaves your machine.
+
+## persistence
+
+every token event is mirrored into `~/.tokenlytics/usage.db` (SQLite, bundled). claude and codex delete sessions after ~30 days; tokenlytics keeps them forever.
+
+`tokenlytics update` and any rebuild never touch your data — the binary lives in `~/.cargo/bin/` or `/usr/local/bin/`, your data lives in `~/.tokenlytics/`.
+
+## where stuff lives
+
+```
+~/.tokenlytics/
+  config.toml          your name, port, leaderboard mode
+  usage.db             every token event, ever
+  leaderboard.json     friend rankings (if you host)
+  tokenlytics.log      daemon stdout/stderr
+  tokenlytics.pid      daemon pid (cleaned by `off`)
+```
+
+## update
+
+```bash
+tokenlytics update
+```
+
+re-runs the install script and fetches the latest binary. the server enforces a minimum client version — old clients get HTTP 426 and the dashboard shows an upgrade banner.
+
+## requirements
 
 - macOS or Linux
-- [Rust/Cargo](https://rustup.rs)
-- Claude Code usage data in `~/.claude`
+- claude code usage in `~/.claude`, codex usage in `~/.codex`, or both
 
-## Quick Start
-
-```bash
-./run
-```
-
-Open `http://localhost:3456`.
-
-To use another port:
+## development
 
 ```bash
-PORT=4000 ./run
-```
-
-You can also run it through Cargo:
-
-```bash
-cargo run
-```
-
-## Development
-
-```bash
-cargo run
+cargo run -- on        # run locally without installing
 cargo test
 ```
 
-To compare Tokenlytics with local Claude Code calendar buckets:
+---
 
-```bash
-cargo test -- --ignored --nocapture
-```
-
-## API
-
-- `GET /api/usage` - full usage data
-- `GET /api/tokens` - token totals and trends
-- `GET /api/models` - per-model usage
-- `GET /api/stream` - realtime Server-Sent Events stream
-- `GET /api/realtime` - alias for `/api/stream`
-
-The realtime stream sends an initial `usage` event immediately, then sends another `usage` event whenever the backend snapshot changes. The event `data` payload is the same JSON shape returned by `/api/usage`.
-
-If Claude data is missing, the dashboard still starts and shows zeroed usage until data exists.
+made by Fabio Roma · `[ ultracontext ]`
