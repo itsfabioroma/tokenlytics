@@ -13,7 +13,9 @@ o-O-o  o-o  o  o o--o o   o o    o   o o-O-o o-O-o   o-o  o-o
 tokenlytics is an open source token tracker. watches your `~/.claude` and `~/.codex` folders. all local. optionally compete on tokenmaxing with your friends to see who becomes the first token trillionaire.
 
 <p align="center">
-  <img width="725" height="659" alt="tokenlytics dashboard" src="https://github.com/user-attachments/assets/99164503-4db0-48a2-86b0-0a08717eba89" />
+  <img alt="tokenlytics cli" width="400" src="https://github.com/user-attachments/assets/0a2b66f8-05cf-4653-bd0e-74d00fc5676b" />
+  &nbsp;
+  <img alt="tokenlytics dashboard" width="400" src="https://github.com/user-attachments/assets/99164503-4db0-48a2-86b0-0a08717eba89" />
 </p>
 
 ## install
@@ -27,14 +29,6 @@ or from source:
 ```bash
 cargo install --git https://github.com/itsfabioroma/tokenlytics
 ```
-
-## the cli
-
-bare `tokenlytics` prints a clean stats block: figlet header, table by period × source, unified sparkline of the last 24 hours.
-
-<p align="center">
-  <img width="524" height="399" alt="tokenlytics cli" src="https://github.com/user-attachments/assets/0a2b66f8-05cf-4653-bd0e-74d00fc5676b" />
-</p>
 
 ## the dashboard
 
