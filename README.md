@@ -10,8 +10,6 @@
 
 tokenlytics is an open source token tracker. watches your `~/.claude` and `~/.codex` folders. all local. optionally compete with your friends to see who becomes the first token trillionaire of your feud.
 
-## what you get (CLI / Web)
-
 <table align="center">
   <tr>
     <td align="center">
@@ -20,9 +18,9 @@ tokenlytics is an open source token tracker. watches your `~/.claude` and `~/.co
       <sub><strong>CLI</strong></sub>
     </td>
     <td align="center">
-      <img alt="tokenlytics dashboard" width="400" src="https://github.com/user-attachments/assets/5d55c617-b5be-4c8c-b0b6-bdebff46713b" />
+      <img alt="tokenlytics web" width="400" src="https://github.com/user-attachments/assets/5d55c617-b5be-4c8c-b0b6-bdebff46713b" />
       <br />
-      <sub><strong>Dashboard</strong></sub>
+      <sub><strong>Web</strong></sub>
     </td>
   </tr>
 </table>
