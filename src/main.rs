@@ -18,7 +18,7 @@ use std::{
 
 const DASHBOARD_HTML: &str = include_str!("../dashboard.html");
 // public host for the "compete globally" flow. swap this when the server moves.
-const DEFAULT_GLOBAL_HOST: &str = "https://tokenlytics-global.fly.dev";
+const DEFAULT_GLOBAL_HOST: &str = "https://tokenlytics.ultracontext.com";
 const CLIENT_VERSION: &str = env!("CARGO_PKG_VERSION");
 // matches the figlet shown on the web dashboard header.
 const FIGLET: &str = r"o-O-o  o-o  o  o o--o o   o o    o   o o-O-o o-O-o   o-o  o-o
