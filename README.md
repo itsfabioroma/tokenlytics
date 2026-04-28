@@ -12,11 +12,20 @@ tokenlytics is an open source token tracker. watches your `~/.claude` and `~/.co
 
 ## what you get (CLI / Web)
 
-<p align="center">
-  <img alt="tokenlytics cli" width="400" src="https://github.com/user-attachments/assets/0a2b66f8-05cf-4653-bd0e-74d00fc5676b" />
-  &nbsp;
-  <img alt="tokenlytics dashboard" width="400" src="https://github.com/user-attachments/assets/5d55c617-b5be-4c8c-b0b6-bdebff46713b" />
-</p>
+<table align="center">
+  <tr>
+    <td align="center">
+      <img alt="tokenlytics cli" width="400" src="https://github.com/user-attachments/assets/0a2b66f8-05cf-4653-bd0e-74d00fc5676b" />
+      <br />
+      <sub><strong>CLI</strong></sub>
+    </td>
+    <td align="center">
+      <img alt="tokenlytics dashboard" width="400" src="https://github.com/user-attachments/assets/5d55c617-b5be-4c8c-b0b6-bdebff46713b" />
+      <br />
+      <sub><strong>Dashboard</strong></sub>
+    </td>
+  </tr>
+</table>
 
 ## install
 
