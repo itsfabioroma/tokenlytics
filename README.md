@@ -13,7 +13,7 @@ o-O-o  o-o  o  o o--o o   o o    o   o o-O-o o-O-o   o-o  o-o
 tokenlytics is an open source token tracker. watches your `~/.claude` and `~/.codex` folders. all local. optionally compete on tokenmaxing with your friends to see who becomes the first token trillionaire.
 
 <p align="center">
-  <img width="725" height="659" alt="tokenlytics dashboard" src="https://github.com/user-attachments/assets/99164503-4db0-48a2-86b0-0a08717eba89" />
+  <img width="725" height="659" alt="tokenlytics dashboard" src="https://github.com/user-attachments/assets/5d55c617-b5be-4c8c-b0b6-bdebff46713b" />
 </p>
 
 ## install
