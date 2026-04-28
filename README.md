@@ -4,8 +4,6 @@ o-O-o  o-o  o  o o--o o   o o    o   o o-O-o o-O-o   o-o  o-o
   |   |   | OO   O-o  | \ | |      O     |     |   O      o-o
   |   o   o | \  |    |  \| |      |     |     |    \        |
   o    o-o  o  o o--o o   o O---o  o     o   o-O-o   o-o o--o
-
-                       by [ ultracontext ]
 ```
 
 <h2 align="center"><em>Realtime token tracker to compete with your friends on tokenmaxing</em></h2>
@@ -23,19 +21,6 @@ or from source:
 ```bash
 cargo install --git https://github.com/itsfabioroma/tokenlytics
 ```
-
-## use it
-
-```bash
-tokenlytics              # show your stats (auto-starts the daemon)
-tokenlytics on           # start the background daemon
-tokenlytics off          # stop the daemon
-tokenlytics status       # is it running?
-tokenlytics update       # fetch the latest
-tokenlytics --version
-```
-
-bare `tokenlytics` auto-starts the daemon if it's not running. ctrl+c on `tokenlytics on` doesn't kill it (detached via `setsid`) — only `tokenlytics off` does.
 
 ## the cli
 
@@ -59,6 +44,19 @@ live token usage with sparklines, trends, and per-model breakdown. realtime via 
 </p>
 
 when the first-run wizard asks for a port, it is for the local dashboard/API.
+
+## use it
+
+```bash
+tokenlytics              # show your stats (auto-starts the daemon)
+tokenlytics on           # start the background daemon
+tokenlytics off          # stop the daemon
+tokenlytics status       # is it running?
+tokenlytics update       # fetch the latest
+tokenlytics --version
+```
+
+bare `tokenlytics` auto-starts the daemon if it's not running. ctrl+c on `tokenlytics on` doesn't kill it (detached via `setsid`) — only `tokenlytics off` does.
 
 ## leaderboard
 
