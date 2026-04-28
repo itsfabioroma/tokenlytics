@@ -1599,34 +1599,27 @@ fn run_onboarding(existing: &UserConfig) -> std::io::Result<UserConfig> {
         .interact()?;
     let name = name.trim().to_string();
 
-    // map saved config back to the top-level mode so re-runs preselect the right option
+    // map saved config back to the top-level mode. default = global (recommended).
     let initial_mode = match (
         existing.leaderboard.enabled,
         existing.leaderboard.host.as_deref(),
     ) {
-        (false, _) => "off",
         (true, Some(host)) if host == DEFAULT_GLOBAL_HOST => "global",
-        (true, _) => "friends",
+        (true, _) => "self-hosted",
+        (false, _) if existing.leaderboard.host.is_some() => "no",
+        _ => "global",
     };
 
-    let mode: &str = cliclack::select("Compete or not?")
+    let mode: &str = cliclack::select("Compete?")
         .initial_value(initial_mode)
-        .item("off", "No", "just wanna track my shit locally")
-        .item(
-            "global",
-            "Yes, but I don't have friends",
-            "compete globally with other tokenchads",
-        )
-        .item(
-            "friends",
-            "Yes, I do have friends",
-            "host or join a private leaderboard",
-        )
+        .item("global", "global", "recommended")
+        .item("self-hosted", "self-hosted", "compete with friends")
+        .item("no", "no", "just track my usage locally")
         .interact()?;
 
     let (lb_enabled, lb_host) = match mode {
         "global" => (true, Some(DEFAULT_GLOBAL_HOST.to_string())),
-        "friends" => prompt_friends_mode(existing)?,
+        "self-hosted" => prompt_friends_mode(existing)?,
         _ => (false, None),
     };
 
@@ -1638,10 +1631,10 @@ fn run_onboarding(existing: &UserConfig) -> std::io::Result<UserConfig> {
     };
 
     let lb_summary = match (&lb_enabled, lb_host.as_deref()) {
-        (true, Some(host)) if host == DEFAULT_GLOBAL_HOST => "global · everyone".to_string(),
-        (true, Some(host)) => format!("join → {host}"),
-        (true, None) => "host (friends point here)".to_string(),
-        _ => "off · local only".to_string(),
+        (true, Some(host)) if host == DEFAULT_GLOBAL_HOST => "global".to_string(),
+        (true, Some(host)) => format!("self-hosted · joined {host}"),
+        (true, None) => "self-hosted · you host".to_string(),
+        _ => "no · local only".to_string(),
     };
     let summary = format!("name      {name}\nport      {port}\nleaderboard  {lb_summary}");
     cliclack::note("saved to ~/.tokenlytics/config.toml", summary)?;
@@ -1679,7 +1672,7 @@ fn should_prompt_port(
     leaderboard_enabled: bool,
     leaderboard_host: Option<&str>,
 ) -> bool {
-    mode == "friends" && leaderboard_enabled && leaderboard_host.is_none()
+    mode == "self-hosted" && leaderboard_enabled && leaderboard_host.is_none()
 }
 
 // sub-step: when user picks "Yes, I do have friends" → host this machine, or join one.
@@ -3334,13 +3327,13 @@ mod tests {
             true,
             Some(DEFAULT_GLOBAL_HOST)
         ));
-        assert!(!should_prompt_port("off", false, None));
+        assert!(!should_prompt_port("no", false, None));
         assert!(!should_prompt_port(
-            "friends",
+            "self-hosted",
             true,
             Some("http://friend.example:6969")
         ));
-        assert!(should_prompt_port("friends", true, None));
+        assert!(should_prompt_port("self-hosted", true, None));
     }
 
     #[test]
