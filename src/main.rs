@@ -972,9 +972,10 @@ fn print_help() {
 fn cmd_update() -> std::io::Result<()> {
     println!("Updating tokenlytics from {UPGRADE_URL} ...");
     println!();
-    let status = Command::new("sh")
+    // bash explicitly: Ubuntu /bin/sh is dash and lacks `set -o pipefail`
+    let status = Command::new("bash")
         .arg("-c")
-        .arg(format!("curl -fsSL {UPGRADE_URL} | sh"))
+        .arg(format!("curl -fsSL {UPGRADE_URL} | bash"))
         .status()?;
     if status.success() {
         println!();

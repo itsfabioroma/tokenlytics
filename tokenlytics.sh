@@ -6,7 +6,15 @@
 set -euo pipefail
 
 REPO="ultracontext/tokenlytics"
-DEST_DIR="${TOKENLYTICS_INSTALL_DIR:-$HOME/.local/bin}"
+
+# pick install dir: env override > existing tokenlytics location > ~/.local/bin
+if [[ -n "${TOKENLYTICS_INSTALL_DIR:-}" ]]; then
+  DEST_DIR="$TOKENLYTICS_INSTALL_DIR"
+elif EXISTING="$(command -v tokenlytics 2>/dev/null)"; then
+  DEST_DIR="$(dirname "$EXISTING")"
+else
+  DEST_DIR="$HOME/.local/bin"
+fi
 DEST="$DEST_DIR/tokenlytics"
 
 OS="$(uname -s | tr '[:upper:]' '[:lower:]')"
