@@ -15,7 +15,7 @@ tokenlytics is an open source token tracker. watches your `~/.claude` and `~/.co
 <p align="center">
   <img alt="tokenlytics cli" width="400" src="https://github.com/user-attachments/assets/0a2b66f8-05cf-4653-bd0e-74d00fc5676b" />
   &nbsp;
-  <img alt="tokenlytics dashboard" width="400" src="https://github.com/user-attachments/assets/99164503-4db0-48a2-86b0-0a08717eba89" />
+  <img alt="tokenlytics dashboard" width="400" src="https://github.com/user-attachments/assets/5d55c617-b5be-4c8c-b0b6-bdebff46713b" />
 </p>
 
 ## install
