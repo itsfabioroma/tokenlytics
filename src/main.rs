@@ -52,6 +52,8 @@ struct AppConfig {
     leaderboard_host: Option<String>,
     leaderboard_enabled: bool,
     server_mode: bool,
+    // admin bearer token for moderation endpoints. None → admin endpoints don't exist.
+    admin_token: Option<String>,
 }
 
 // persisted user config at ~/.tokenlytics/config.toml. created during onboarding.
@@ -426,6 +428,10 @@ fn cmd_serve(user_config: UserConfig) -> std::io::Result<()> {
         .map(|v| matches!(v.trim().to_ascii_lowercase().as_str(), "1" | "true" | "on" | "yes"))
         .unwrap_or(false);
 
+    let admin_token = env::var("TOKENLYTICS_ADMIN_TOKEN")
+        .ok()
+        .filter(|v| !v.trim().is_empty());
+
     let config = AppConfig {
         name: env::var("TOKENLYTICS_NAME")
             .ok()
@@ -436,6 +442,7 @@ fn cmd_serve(user_config: UserConfig) -> std::io::Result<()> {
         leaderboard_host,
         leaderboard_enabled,
         server_mode,
+        admin_token,
     };
 
     let state = AppState {
@@ -1021,7 +1028,7 @@ impl Paths {
 }
 
 fn handle_connection(mut stream: TcpStream, state: &AppState) -> std::io::Result<()> {
-    let Some((request_line, body)) = read_http_request(&mut stream)? else {
+    let Some((request_line, head, body)) = read_http_request(&mut stream)? else {
         return Ok(());
     };
 
@@ -1031,13 +1038,20 @@ fn handle_connection(mut stream: TcpStream, state: &AppState) -> std::io::Result
     let path = path.split('?').next().unwrap_or("/");
 
     if method == "GET" && is_realtime_path(path) {
+        // SSE exposes local user data — never available in public server mode
+        if state.config.server_mode {
+            let response = HttpResponse::json_error(404, "not found");
+            stream.write_all(&response.into_bytes())?;
+            return stream.flush();
+        }
         return stream_usage_events(&mut stream, state);
     }
 
     let response = match method {
         "OPTIONS" => HttpResponse::empty(204, "No Content"),
         "GET" => route_get(path, state),
-        "POST" => route_post(path, &body, state),
+        "POST" => route_post(path, &head, &body, state),
+        "DELETE" => route_delete(path, &head, state),
         _ => HttpResponse::json_error(405, "method not allowed"),
     };
 
@@ -1046,7 +1060,7 @@ fn handle_connection(mut stream: TcpStream, state: &AppState) -> std::io::Result
 }
 
 // reads request line + headers + body (if Content-Length set). caps at 64KB body.
-fn read_http_request(stream: &mut TcpStream) -> std::io::Result<Option<(String, Vec<u8>)>> {
+fn read_http_request(stream: &mut TcpStream) -> std::io::Result<Option<(String, String, Vec<u8>)>> {
     let mut buf: Vec<u8> = Vec::with_capacity(8 * 1024);
     let mut tmp = [0u8; 8 * 1024];
     let header_end;
@@ -1091,11 +1105,24 @@ fn read_http_request(stream: &mut TcpStream) -> std::io::Result<Option<(String, 
 
     let body_end = (body_start + content_length).min(buf.len());
     let body = buf[body_start..body_end].to_vec();
-    Ok(Some((request_line, body)))
+    Ok(Some((request_line, head, body)))
 }
 
 fn find_double_crlf(buf: &[u8]) -> Option<usize> {
     buf.windows(4).position(|w| w == b"\r\n\r\n")
+}
+
+// case-insensitive header lookup. returns the trimmed value or None.
+fn header_value(head: &str, name: &str) -> Option<String> {
+    let target = name.to_ascii_lowercase();
+    head.lines().skip(1).find_map(|line| {
+        let (k, v) = line.split_once(':')?;
+        if k.trim().to_ascii_lowercase() == target {
+            Some(v.trim().to_string())
+        } else {
+            None
+        }
+    })
 }
 
 fn is_realtime_path(path: &str) -> bool {
@@ -1103,6 +1130,22 @@ fn is_realtime_path(path: &str) -> bool {
 }
 
 fn route_get(path: &str, state: &AppState) -> HttpResponse {
+    // server mode: tight whitelist. nothing else (incl. /) returns content.
+    if state.config.server_mode {
+        return match path {
+            "/api/version" => HttpResponse::json_value(
+                200,
+                serde_json::json!({
+                    "serverVersion": CLIENT_VERSION,
+                    "minClientVersion": MIN_CLIENT_VERSION,
+                    "upgradeUrl": UPGRADE_URL,
+                }),
+            ),
+            "/api/leaderboard" => leaderboard_get(state),
+            _ => HttpResponse::json_error(404, "not found"),
+        };
+    }
+
     match path {
         "/api/usage" => match get_data(state) {
             Ok(data) => HttpResponse::json(200, &data),
@@ -1171,12 +1214,72 @@ fn route_get(path: &str, state: &AppState) -> HttpResponse {
     }
 }
 
-fn route_post(path: &str, body: &[u8], state: &AppState) -> HttpResponse {
+fn route_post(path: &str, head: &str, body: &[u8], state: &AppState) -> HttpResponse {
+    // server mode: only public submit + admin endpoints (auth required)
+    if state.config.server_mode {
+        return match path {
+            "/api/leaderboard/submit" => leaderboard_submit(body, state),
+            "/api/admin/wipe" => admin_wipe(head, state),
+            _ => HttpResponse::json_error(404, "not found"),
+        };
+    }
+
     match path {
         "/api/leaderboard/submit" => leaderboard_submit(body, state),
         "/api/self-update" => self_update_endpoint(),
         _ => HttpResponse::json_error(404, "not found"),
     }
+}
+
+fn route_delete(path: &str, head: &str, state: &AppState) -> HttpResponse {
+    // only available when an admin token is configured (server mode or local)
+    if let Some(name) = path.strip_prefix("/api/admin/entry/") {
+        return admin_delete_entry(head, state, name);
+    }
+    HttpResponse::json_error(404, "not found")
+}
+
+// admin endpoints — gated by Authorization: Bearer ${TOKENLYTICS_ADMIN_TOKEN}.
+// if env unset, all admin paths return 404 (they "don't exist").
+fn require_admin(head: &str, state: &AppState) -> Option<HttpResponse> {
+    let Some(expected) = state.config.admin_token.as_deref() else {
+        return Some(HttpResponse::json_error(404, "not found"));
+    };
+    let auth = header_value(head, "authorization").unwrap_or_default();
+    let provided = auth.strip_prefix("Bearer ").unwrap_or("");
+    if provided == expected {
+        None
+    } else {
+        Some(HttpResponse::json_error(401, "unauthorized"))
+    }
+}
+
+fn admin_wipe(head: &str, state: &AppState) -> HttpResponse {
+    if let Some(resp) = require_admin(head, state) {
+        return resp;
+    }
+    let mut guard = match state.leaderboard.lock() {
+        Ok(guard) => guard,
+        Err(_) => return HttpResponse::json_error(500, "lock poisoned"),
+    };
+    let removed = guard.len();
+    guard.clear();
+    let _ = save_leaderboard(&state.leaderboard_path, &guard);
+    HttpResponse::json_value(200, serde_json::json!({ "wiped": removed }))
+}
+
+fn admin_delete_entry(head: &str, state: &AppState, name: &str) -> HttpResponse {
+    if let Some(resp) = require_admin(head, state) {
+        return resp;
+    }
+    let key = name.trim().to_lowercase();
+    let mut guard = match state.leaderboard.lock() {
+        Ok(guard) => guard,
+        Err(_) => return HttpResponse::json_error(500, "lock poisoned"),
+    };
+    let removed = guard.remove(&key).is_some();
+    let _ = save_leaderboard(&state.leaderboard_path, &guard);
+    HttpResponse::json_value(200, serde_json::json!({ "removed": removed, "name": name }))
 }
 
 // fired by the dashboard when a leaderboard submit returns 426. spawns the
