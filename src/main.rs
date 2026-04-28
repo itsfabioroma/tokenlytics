@@ -1172,17 +1172,29 @@ fn route_get(path: &str, state: &AppState) -> HttpResponse {
             Ok(data) => HttpResponse::json(200, &data.model_usage),
             Err(err) => HttpResponse::json_error(500, &err),
         },
-        "/api/config" => HttpResponse::json_value(
-            200,
-            serde_json::json!({
-                // empty name in server mode → dashboard JS guard skips auto-push
-                "name": if state.config.server_mode { "" } else { state.config.name.as_str() },
-                "leaderboardHost": state.config.leaderboard_host,
-                "leaderboardEnabled": state.config.leaderboard_enabled,
-                "clientVersion": CLIENT_VERSION,
-                "serverMode": state.config.server_mode,
-            }),
-        ),
+        "/api/config" => {
+            let mode = if !state.config.leaderboard_enabled {
+                "off"
+            } else if state.config.leaderboard_host.as_deref() == Some(DEFAULT_GLOBAL_HOST) {
+                "global"
+            } else if state.config.leaderboard_host.is_none() {
+                "host"
+            } else {
+                "join"
+            };
+            HttpResponse::json_value(
+                200,
+                serde_json::json!({
+                    // empty name in server mode → dashboard JS guard skips auto-push
+                    "name": if state.config.server_mode { "" } else { state.config.name.as_str() },
+                    "leaderboardHost": state.config.leaderboard_host,
+                    "leaderboardEnabled": state.config.leaderboard_enabled,
+                    "leaderboardMode": mode,
+                    "clientVersion": CLIENT_VERSION,
+                    "serverMode": state.config.server_mode,
+                }),
+            )
+        }
         "/api/version" => HttpResponse::json_value(
             200,
             serde_json::json!({

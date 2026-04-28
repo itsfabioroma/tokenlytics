@@ -230,7 +230,21 @@
       transition: width 0.4s ease;
     }
     .lb-empty { color: #444; font-size: 11px; padding: 12px 0; text-align: center; }
-    .lb-hint { margin-top: 12px; font-size: 9px; color: #444; letter-spacing: 1px; line-height: 1.5; }
+    .lb-hint { margin-top: 12px; font-size: 9px; color: #444; letter-spacing: 1px; line-height: 1.6; }
+    .lb-hint kbd {
+      font-family: inherit;
+      background: #151515;
+      border: 1px solid #2a2a2a;
+      border-radius: 3px;
+      padding: 1px 5px;
+      font-size: 9px;
+      color: #888;
+      letter-spacing: 0;
+    }
+    .lb-mode {
+      color: #f59e0b;
+      font-weight: normal;
+    }
 
   </style>
 </head>
@@ -543,14 +557,32 @@ o-O-o  o-o  o  o o--o o   o o    o   o o-O-o o-O-o   o-o  o-o
       }
       if (!lbConfig.leaderboardEnabled) return;
 
-      document.getElementById('lbName').textContent = lbConfig.name ? `you · ${lbConfig.name}` : '';
+      const modeLabel = { global: 'global', host: 'hosting', join: 'joined' }[lbConfig.leaderboardMode] || '';
+      const nameEl = document.getElementById('lbName');
+      const me = lbConfig.name ? `you · ${lbConfig.name}` : '';
+      nameEl.innerHTML = me + (modeLabel ? ` · <span class="lb-mode">${modeLabel}</span>` : '');
+
       const hint = document.getElementById('lbHint');
-      hint.textContent = lbConfig.leaderboardHost
-        ? `synced via ${lbConfig.leaderboardHost}`
-        : 'local mode · set $LEADERBOARD_HOST to compete with friends';
+      const sync = lbConfig.leaderboardHost
+        ? `sync via ${lbConfig.leaderboardHost}`
+        : 'local mode';
+      hint.innerHTML = `<kbd>L</kbd> to hide · ${sync}`;
 
       applyLeaderboardVisibility();
     }
+
+    // L hotkey: toggle leaderboard visibility (when not typing in an input)
+    document.addEventListener('keydown', (event) => {
+      if (event.metaKey || event.ctrlKey || event.altKey) return;
+      const tag = event.target?.tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || event.target?.isContentEditable) return;
+      if (event.key.toLowerCase() !== 'l') return;
+      if (!lbConfig?.leaderboardEnabled) return;
+      const hidden = localStorage.getItem(LB_HIDDEN_KEY) === '1';
+      if (hidden) localStorage.removeItem(LB_HIDDEN_KEY);
+      else localStorage.setItem(LB_HIDDEN_KEY, '1');
+      applyLeaderboardVisibility();
+    });
 
     // user can hide/show the sidebar; preference persists in localStorage.
     const LB_HIDDEN_KEY = 'tokenlytics:lb-hidden';
