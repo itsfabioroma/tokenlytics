@@ -101,6 +101,38 @@ every token event is mirrored into `~/.tokenlytics/usage.db` (SQLite, bundled). 
   tokenlytics.pid      daemon pid (cleaned by `off`)
 ```
 
+## host your own leaderboard
+
+run tokenlytics in **server mode** to back a public or private leaderboard.
+
+```bash
+LEADERBOARD=1 LEADERBOARD_SERVER=1 \
+  TOKENLYTICS_ADMIN_TOKEN=$(openssl rand -hex 32) \
+  tokenlytics serve --no-setup
+```
+
+server mode locks the API surface to a tight whitelist:
+
+| public | locked down |
+|---|---|
+| `GET /api/leaderboard` | `GET /` (no dashboard) |
+| `GET /api/version` | `/api/usage` `/api/tokens` `/api/models` `/api/stream` |
+| `POST /api/leaderboard/submit` | `POST /api/self-update` |
+
+with `TOKENLYTICS_ADMIN_TOKEN` set you also get admin endpoints (`Authorization: Bearer <token>`):
+
+```bash
+# wipe entire leaderboard
+curl -X POST https://your-host/api/admin/wipe \
+  -H "Authorization: Bearer $TOKEN"
+
+# delete one entry
+curl -X DELETE https://your-host/api/admin/entry/<name> \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+without the env var, admin paths return 404 (they don't exist). the global host at `tokenlytics.ultracontext.com` runs this exact setup behind Cloudflare + nginx + systemd. ready-made deploy script in `scripts/vps-deploy.sh`.
+
 ## update
 
 ```bash
