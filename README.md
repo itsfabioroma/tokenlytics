@@ -1,5 +1,8 @@
 # Tokenlytics
 
+<img width="524" height="399" alt="Screenshot 2026-04-28 at 00 21 06" src="https://github.com/user-attachments/assets/0a2b66f8-05cf-4653-bd0e-74d00fc5676b" />
+
+
 Tokenlytics is a small Rust dashboard for Claude Code token usage. It reads Claude data from `~/.claude/stats-cache.json` and `~/.claude/projects/**/*.jsonl`, then serves a local dashboard and JSON endpoints.
 
 The server keeps an in-memory snapshot and runs a Rust watcher backed by OS file events (`FSEvents` on macOS, `inotify` on Linux through `notify`). When Claude writes a new JSONL line or updates the stats cache, Tokenlytics reloads the snapshot and pushes it to the dashboard over Server-Sent Events. If OS watching is unavailable, it falls back to a one-second fingerprint poll.
