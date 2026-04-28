@@ -216,9 +216,10 @@
     }
     .lb-row:last-child { border-bottom: none; }
     .lb-row-top { display: flex; align-items: center; gap: 8px; font-size: 12px; }
+    .lb-name-wrap { display: flex; align-items: center; gap: 6px; flex: 1; min-width: 0; }
     .lb-badge-spacer { width: 14px; flex-shrink: 0; }
     .lb-rank { color: #555; font-variant-numeric: tabular-nums; font-size: 11px; width: 18px; }
-    .lb-name { color: #c8c8c8; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .lb-name { color: #c8c8c8; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
     .lb-badge { width: 14px; height: 14px; border-radius: 3px; object-fit: cover; flex-shrink: 0; }
     .lb-row.lb-me .lb-name,
     .lb-row.lb-me .lb-rank { color: #f59e0b; }
@@ -675,9 +676,11 @@ o-O-o  o-o  o  o o--o o   o o    o   o o-O-o o-O-o   o-o  o-o
           <div class="lb-row${isMe ? ' lb-me' : ''}">
             <div class="lb-row-top">
               <span class="lb-rank">${i + 1}</span>
-              <span class="lb-name">${escapeHtml(entry.name)}</span>
+              <span class="lb-name-wrap">
+                <span class="lb-name">${escapeHtml(entry.name)}</span>
+                ${entry.badge ? `<img class="lb-badge" src="${escapeHtml(entry.badge)}" alt="" />` : ''}
+              </span>
               <span class="lb-val">${compact(value)}</span>
-              ${entry.badge ? `<img class="lb-badge" src="${escapeHtml(entry.badge)}" alt="" />` : '<span class="lb-badge-spacer"></span>'}
             </div>
             <div class="lb-bar"><span style="width:${pct.toFixed(1)}%"></span></div>
           </div>
