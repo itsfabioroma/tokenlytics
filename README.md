@@ -6,7 +6,7 @@
                       o    o-o  o  o o--o o   o O---o  o     o   o-O-o   o-o o--o
 ```
 
-<h2 align="center"><em>Realtime token tracker to compete with your friends on tokenmaxing</em></h2>
+<h2 align="center"><em>Realtime token tracker to compete with your friends on tokenmaxxing</em></h2>
 
 tokenlytics is an open source token tracker. watches your `~/.claude` and `~/.codex` folders. all local. optionally compete with your friends to see who becomes the first token trillionaire of your feud.
 
