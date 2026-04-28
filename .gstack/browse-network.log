@@ -1,0 +1,6 @@
+[2026-04-15T18:58:13.456Z] GET http://localhost:3456/ → 200 (6ms, 18151B)
+[2026-04-15T18:58:13.471Z] GET http://localhost:3456/api/usage → 200 (19ms, 4652B)
+[2026-04-15T18:58:16.473Z] GET http://localhost:3456/api/usage → 200 (1ms, 4652B)
+[2026-04-15T18:58:19.472Z] GET http://localhost:3456/api/usage → 200 (1ms, 4652B)
+[2026-04-15T18:58:22.474Z] GET http://localhost:3456/api/usage → 200 (2ms, 4652B)
+[2026-04-15T18:58:25.472Z] GET http://localhost:3456/api/usage → 200 (2ms, 4652B)
