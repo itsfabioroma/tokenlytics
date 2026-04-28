@@ -171,6 +171,7 @@
 
     /* leaderboard plugin */
     .plugin {
+      position: relative;
       border: 1px solid #222;
       padding: 16px 20px;
       background: #0a0a0a;
@@ -179,6 +180,24 @@
       font-size: 10px; color: #555; text-transform: uppercase; letter-spacing: 2px;
       margin-bottom: 4px;
     }
+    .lb-close {
+      position: absolute; top: 6px; right: 8px;
+      width: 22px; height: 22px;
+      background: none; border: none; color: #444; cursor: pointer;
+      font-size: 16px; line-height: 1; padding: 0;
+      font-family: inherit;
+    }
+    .lb-close:hover { color: #c8c8c8; }
+    .lb-show {
+      position: fixed; bottom: 16px; right: 16px;
+      display: none; padding: 6px 12px;
+      background: #0a0a0a; border: 1px solid #222; border-radius: 6px;
+      color: #666; font-size: 10px; text-transform: uppercase; letter-spacing: 2px;
+      cursor: pointer; font-family: inherit;
+      z-index: 10;
+    }
+    .lb-show:hover { color: #c8c8c8; border-color: #444; }
+    .lb-show.is-visible { display: inline-block; }
     .lb-header {
       display: flex; align-items: baseline; flex-wrap: wrap; gap: 8px; margin-bottom: 12px;
     }
@@ -277,6 +296,7 @@ o-O-o  o-o  o  o o--o o   o o    o   o o-O-o o-O-o   o-o  o-o
   <aside class="sidebar" id="sidebar" hidden>
     <div class="upgrade-banner" id="upgradeBanner"></div>
     <div class="plugin" id="leaderboardPlugin">
+      <button class="lb-close" id="lbClose" aria-label="hide leaderboard" title="hide">×</button>
       <div class="plugin-title">leaderboard</div>
       <div class="lb-header">
         <span class="lb-name-self" id="lbName"></span>
@@ -291,6 +311,8 @@ o-O-o  o-o  o  o o--o o   o o    o   o o-O-o o-O-o   o-o  o-o
       <div class="lb-hint" id="lbHint"></div>
     </div>
   </aside>
+
+  <button class="lb-show" id="lbShow" aria-label="show leaderboard">leaderboard</button>
 
   <script>
     const f = n => n.toLocaleString();
@@ -521,15 +543,30 @@ o-O-o  o-o  o  o o--o o   o o    o   o o-O-o o-O-o   o-o  o-o
       }
       if (!lbConfig.leaderboardEnabled) return;
 
-      // reveal sidebar
-      document.getElementById('sidebar').hidden = false;
       document.getElementById('lbName').textContent = lbConfig.name ? `you · ${lbConfig.name}` : '';
-
       const hint = document.getElementById('lbHint');
       hint.textContent = lbConfig.leaderboardHost
         ? `synced via ${lbConfig.leaderboardHost}`
         : 'local mode · set $LEADERBOARD_HOST to compete with friends';
+
+      applyLeaderboardVisibility();
     }
+
+    // user can hide/show the sidebar; preference persists in localStorage.
+    const LB_HIDDEN_KEY = 'tokenlytics:lb-hidden';
+    function applyLeaderboardVisibility() {
+      const hidden = localStorage.getItem(LB_HIDDEN_KEY) === '1';
+      document.getElementById('sidebar').hidden = hidden;
+      document.getElementById('lbShow').classList.toggle('is-visible', hidden);
+    }
+    document.getElementById('lbClose')?.addEventListener('click', () => {
+      localStorage.setItem(LB_HIDDEN_KEY, '1');
+      applyLeaderboardVisibility();
+    });
+    document.getElementById('lbShow')?.addEventListener('click', () => {
+      localStorage.removeItem(LB_HIDDEN_KEY);
+      applyLeaderboardVisibility();
+    });
 
     async function pushLeaderboard(w) {
       if (!lbConfig || !lbConfig.leaderboardEnabled || !lbConfig.name) return;
