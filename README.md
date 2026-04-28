@@ -1,9 +1,9 @@
 ```
-                                        o-O-o  o-o  o  o o--o o   o o    o   o o-O-o o-O-o   o-o  o-o
-                                          |   o   o | /  |    |\  | |     \ /    |     |    /    |
-                                          |   |   | OO   O-o  | \ | |      O     |     |   O      o-o
-                                          |   o   o | \  |    |  \| |      |     |     |    \        |
-                                          o    o-o  o  o o--o o   o O---o  o     o   o-O-o   o-o o--o
+                    o-O-o  o-o  o  o o--o o   o o    o   o o-O-o o-O-o   o-o  o-o
+                      |   o   o | /  |    |\  | |     \ /    |     |    /    |
+                      |   |   | OO   O-o  | \ | |      O     |     |   O      o-o
+                      |   o   o | \  |    |  \| |      |     |     |    \        |
+                      o    o-o  o  o o--o o   o O---o  o     o   o-O-o   o-o o--o
 ```
 
 <h2 align="center"><em>Realtime token tracker to compete with your friends on tokenmaxing</em></h2>
