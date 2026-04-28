@@ -368,6 +368,19 @@ fn main() {
                     eprintln!("warning: could not save {}: {err}", config_path.display());
                 }
                 user_config = new_cfg;
+
+                // if a daemon is running, it has the OLD config in memory.
+                // restart it so the freshly saved config takes effect.
+                if let Some(pid) = read_pid().filter(|pid| process_alive(*pid)) {
+                    println!();
+                    println!("daemon running (pid {pid}) — restarting to apply new config…");
+                    let _ = cmd_off();
+                    thread::sleep(StdDuration::from_millis(300));
+                    match start_daemon_quietly(&user_config) {
+                        Ok(new_pid) => println!("✓ daemon restarted (pid {new_pid})"),
+                        Err(err) => eprintln!("could not restart daemon: {err}"),
+                    }
+                }
             }
             Err(err) => {
                 eprintln!("setup cancelled: {err}");
