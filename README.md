@@ -71,7 +71,7 @@ opt-in. picked during the first-run wizard, changeable via `tokenlytics --reconf
 - **global** — compete with everyone running tokenlytics. live at [ultracontext.com/tokenlytics](https://ultracontext.com/tokenlytics)
 - **friends** — host or join a private leaderboard
 
-display name and token totals are the only things that leave your machine, and only if you enabled it.
+display name, token totals, and aggregate per-model token totals are the only things that leave your machine, and only if you enabled it.
 
 ## what's local, what's not
 
@@ -80,7 +80,7 @@ display name and token totals are the only things that leave your machine, and o
 | token counts | ✓ |  |
 | dashboard | ✓ |  |
 | your messages, prompts, code | ✓ |  |
-| display name + totals |  | leaderboard server (if enabled) |
+| display name + totals + per-model totals |  | leaderboard server (if enabled) |
 
 if leaderboard is off, **nothing** leaves your machine.
 

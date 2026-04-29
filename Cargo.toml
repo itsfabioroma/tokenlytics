@@ -1,6 +1,6 @@
 [package]
 name = "tokenlytics"
-version = "0.1.13"
+version = "0.1.14"
 edition = "2021"
 license = "MIT"
 description = "Realtime token tracker for Claude Code + Codex. CLI + web dashboard, all local. Optionally compete on a global leaderboard."

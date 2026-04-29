@@ -62,6 +62,7 @@
       padding: 32px;
       margin-bottom: 16px;
     }
+    .has-model-hover { cursor: help; }
     .hero .label { display: flex; align-items: baseline; gap: 8px; font-size: 11px; color: #555; text-transform: uppercase; letter-spacing: 2px; margin-bottom: 8px; }
     .hero .measure { color: #3f3f3f; font-size: 9px; letter-spacing: 1px; text-transform: lowercase; }
     .hero .measure .claude { color: #f59e0b; }
@@ -263,7 +264,7 @@ o-O-o  o-o  o  o o--o o   o o    o   o o-O-o o-O-o   o-o  o-o
     <div class="brand-credit">by [ <span>ultracontext</span> ]</div>
 
     <!-- hero: last 24h -->
-    <div class="hero">
+    <div class="hero" id="windowLast24h">
       <div class="label">last 24h <span class="measure">input + output · <span class="claude">claude</span> + <span class="codex">codex</span></span></div>
       <div class="value" id="last24h">...</div>
       <div class="breakdown" id="breakdown24h"></div>
@@ -273,7 +274,7 @@ o-O-o  o-o  o  o o--o o   o o    o   o o-O-o o-O-o   o-o  o-o
 
     <!-- time windows -->
     <div class="windows">
-      <div class="row">
+      <div class="row" id="windowLast7d">
         <span class="label">last 7d</span>
         <div class="mid" id="spark7d"></div>
         <div class="right">
@@ -284,7 +285,7 @@ o-O-o  o-o  o  o o--o o   o o    o   o o-O-o o-O-o   o-o  o-o
           <span class="trend" id="trend7d"></span>
         </div>
       </div>
-      <div class="row">
+      <div class="row" id="windowLast30d">
         <span class="label">last 30d</span>
         <div class="mid" id="spark30d"></div>
         <div class="right">
@@ -295,7 +296,7 @@ o-O-o  o-o  o  o o--o o   o o    o   o o-O-o o-O-o   o-o  o-o
           <span class="trend" id="trend30d"></span>
         </div>
       </div>
-      <div class="row">
+      <div class="row" id="windowAllTime">
         <span class="label">all time</span>
         <div class="mid"></div>
         <div class="right">
@@ -508,6 +509,26 @@ o-O-o  o-o  o  o o--o o   o o    o   o o-O-o o-O-o   o-o  o-o
       return `<span class="${cls}">${arrow} ${Math.abs(pct).toFixed(0)}%</span>`;
     }
 
+    function setModelHover(id, title) {
+      const el = document.getElementById(id);
+      if (!el) return;
+      if (title) {
+        el.setAttribute('title', title);
+        el.classList.add('has-model-hover');
+      } else {
+        el.removeAttribute('title');
+        el.classList.remove('has-model-hover');
+      }
+    }
+
+    function renderDashboardModelHovers(d) {
+      const usage = d.windowModelUsage || { allTime: d.modelUsage || {} };
+      setModelHover('windowLast24h', modelUsageTitle(usage, 'last24h'));
+      setModelHover('windowLast7d', modelUsageTitle(usage, 'last7d'));
+      setModelHover('windowLast30d', modelUsageTitle(usage, 'last30d'));
+      setModelHover('windowAllTime', modelUsageTitle(usage, 'allTime'));
+    }
+
     function renderUsage(d) {
       const w = d.windows;
       const s = d.sparklines;
@@ -532,10 +553,11 @@ o-O-o  o-o  o  o o--o o   o o    o   o o-O-o o-O-o   o-o  o-o
       renderSparkline('spark30d', s.last30d, 200, 24, labels30d);
       document.getElementById('allTime').textContent = f(w.allTime);
       document.getElementById('breakdownAllTime').textContent = breakdownText(w.allTimeBreakdown);
+      renderDashboardModelHovers(d);
 
       // leaderboard plugin sync (no-op when disabled)
       if (lbConfig && lbConfig.leaderboardEnabled) {
-        pushLeaderboard(w).then(fetchLeaderboard);
+        pushLeaderboard(d).then(fetchLeaderboard);
       }
     }
 
@@ -549,6 +571,44 @@ o-O-o  o-o  o  o o--o o   o o    o   o o-O-o o-O-o   o-o  o-o
 
     function escapeHtml(s) {
       return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+    }
+
+    function lbWindowLabel(key) {
+      return ({ last24h: '24h', last7d: '7d', last30d: '30d', allTime: 'all' })[key] || key;
+    }
+
+    function modelTokenTotal(usage) {
+      return (usage?.input || 0) + (usage?.output || 0);
+    }
+
+    function modelUsageForWindow(modelUsage, key) {
+      if (!modelUsage) return {};
+      if (modelUsage[key]) return modelUsage[key];
+      if (key === 'allTime' && !modelUsage.last24h && !modelUsage.last7d && !modelUsage.last30d) {
+        return modelUsage;
+      }
+      return {};
+    }
+
+    function modelUsageTitle(modelUsage, key) {
+      const usage = modelUsageForWindow(modelUsage, key);
+      const rows = Object.entries(usage || {})
+        .map(([model, parts]) => [model, parts, modelTokenTotal(parts)])
+        .filter(([, , total]) => total > 0)
+        .sort((a, b) => b[2] - a[2]);
+      if (!rows.length) return '';
+
+      const top = rows.slice(0, 6).map(([model, parts, total]) => {
+        const input = parts?.input || 0;
+        const output = parts?.output || 0;
+        return `${model}: ${compact(total)} (in ${compact(input)} · out ${compact(output)})`;
+      });
+      if (rows.length > top.length) top.push(`+${rows.length - top.length} more`);
+      return `models (${lbWindowLabel(key)})\n${top.join('\n')}`;
+    }
+
+    function leaderboardModelTitle(entry) {
+      return modelUsageTitle(entry.modelUsage, lbWindow);
     }
 
     async function loadConfig() {
@@ -603,8 +663,9 @@ o-O-o  o-o  o  o o--o o   o o    o   o o-O-o o-O-o   o-o  o-o
       applyLeaderboardVisibility();
     });
 
-    async function pushLeaderboard(w) {
+    async function pushLeaderboard(data) {
       if (!lbConfig || !lbConfig.leaderboardEnabled || !lbConfig.name) return;
+      const w = data.windows || data;
       try {
         const res = await fetch(`${lbBase()}/api/leaderboard/submit`, {
           method: 'POST',
@@ -616,6 +677,7 @@ o-O-o  o-o  o  o o--o o   o o    o   o o-O-o o-O-o   o-o  o-o
             last7d: w.last7d,
             last30d: w.last30d,
             allTime: w.allTime,
+            modelUsage: data.windowModelUsage || { allTime: data.modelUsage || {} },
           }),
         });
         if (res.status === 426) {
@@ -672,8 +734,9 @@ o-O-o  o-o  o  o o--o o   o o    o   o o-O-o o-O-o   o-o  o-o
         const value = entry[key] || 0;
         const pct = (value / max) * 100;
         const isMe = entry.name.toLowerCase() === myKey;
+        const modelTitle = leaderboardModelTitle(entry);
         return `
-          <div class="lb-row${isMe ? ' lb-me' : ''}">
+          <div class="lb-row${isMe ? ' lb-me' : ''}"${modelTitle ? ` title="${escapeHtml(modelTitle)}"` : ''}>
             <div class="lb-row-top">
               <span class="lb-rank">${i + 1}</span>
               <span class="lb-name-wrap">

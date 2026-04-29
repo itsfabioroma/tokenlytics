@@ -84,6 +84,8 @@ struct LeaderboardEntry {
     last_7d: u64,
     last_30d: u64,
     all_time: u64,
+    #[serde(default)]
+    model_usage: WindowModelUsage,
     updated_at: String,
 }
 
@@ -195,17 +197,35 @@ struct ParsedUsageFile {
     entries: Vec<UsageCandidate>,
 }
 
-#[derive(Default, Clone, Debug, Serialize)]
+#[derive(Default, Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct ModelUsageEntry {
+    #[serde(default)]
     input: u64,
+    #[serde(default)]
     output: u64,
+    #[serde(default)]
     cache_read: u64,
+    #[serde(default)]
     cache_creation: u64,
+    #[serde(default)]
     messages: u64,
 }
 
 type ModelUsage = BTreeMap<String, ModelUsageEntry>;
+
+#[derive(Default, Clone, Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct WindowModelUsage {
+    #[serde(default)]
+    last_24h: ModelUsage,
+    #[serde(default)]
+    last_7d: ModelUsage,
+    #[serde(default)]
+    last_30d: ModelUsage,
+    #[serde(default)]
+    all_time: ModelUsage,
+}
 
 #[derive(Default)]
 struct UsageAggregate {
@@ -246,6 +266,7 @@ struct UsageData {
     windows: Windows,
     sparklines: Sparklines,
     model_usage: ModelUsage,
+    window_model_usage: WindowModelUsage,
     streaks: Streaks,
     heatmap: Vec<HeatmapDay>,
     session_stats: SessionStats,
@@ -445,7 +466,12 @@ fn cmd_serve(user_config: UserConfig) -> std::io::Result<()> {
 
     // server mode: API-only, suppresses dashboard page + auto-push of self.
     let server_mode = env::var("LEADERBOARD_SERVER")
-        .map(|v| matches!(v.trim().to_ascii_lowercase().as_str(), "1" | "true" | "on" | "yes"))
+        .map(|v| {
+            matches!(
+                v.trim().to_ascii_lowercase().as_str(),
+                "1" | "true" | "on" | "yes"
+            )
+        })
         .unwrap_or(false);
 
     let admin_token = env::var("TOKENLYTICS_ADMIN_TOKEN")
@@ -1409,6 +1435,7 @@ fn leaderboard_get(state: &AppState) -> HttpResponse {
                 "last7d": e.last_7d,
                 "last30d": e.last_30d,
                 "allTime": e.all_time,
+                "modelUsage": &e.model_usage,
                 "updatedAt": e.updated_at,
                 "badge": badge,
             })
@@ -1463,7 +1490,10 @@ fn admin_set_badge(head: &str, state: &AppState, name: &str, body: &[u8]) -> Htt
     };
     guard.insert(key.clone(), logo.clone());
     let _ = save_badges(&state.badges_path, &guard);
-    HttpResponse::json_value(200, serde_json::json!({ "name": key, "logo": logo, "set": true }))
+    HttpResponse::json_value(
+        200,
+        serde_json::json!({ "name": key, "logo": logo, "set": true }),
+    )
 }
 
 fn admin_remove_badge(head: &str, state: &AppState, name: &str) -> HttpResponse {
@@ -1490,6 +1520,8 @@ fn leaderboard_submit(body: &[u8], state: &AppState) -> HttpResponse {
         last_7d: u64,
         last_30d: u64,
         all_time: u64,
+        #[serde(default)]
+        model_usage: WindowModelUsage,
     }
 
     let input: SubmitInput = match serde_json::from_slice(body) {
@@ -1523,6 +1555,7 @@ fn leaderboard_submit(body: &[u8], state: &AppState) -> HttpResponse {
         last_7d: input.last_7d,
         last_30d: input.last_30d,
         all_time: input.all_time,
+        model_usage: input.model_usage,
         updated_at: Utc::now().to_rfc3339(),
     };
 
@@ -2223,6 +2256,12 @@ fn build_usage_data(cache: StatsCache, messages: Vec<UsageEntry>, now: DateTime<
     let all_time_claude = all_time.claude_tokens;
     let all_time_codex = all_time.codex_tokens;
     let all_time_model_usage = all_time.model_usage;
+    let window_model_usage = WindowModelUsage {
+        last_24h: agg_24h.model_usage.clone(),
+        last_7d: agg_7d.model_usage.clone(),
+        last_30d: agg_30d.model_usage.clone(),
+        all_time: all_time_model_usage.clone(),
+    };
 
     let windows = Windows {
         last_24h: agg_24h.total_tokens,
@@ -2302,6 +2341,7 @@ fn build_usage_data(cache: StatsCache, messages: Vec<UsageEntry>, now: DateTime<
             last_30d: spark_30d,
         },
         model_usage: all_time_model_usage,
+        window_model_usage,
         streaks,
         heatmap,
         session_stats,
@@ -2855,11 +2895,21 @@ mod tests {
         input: u64,
         output: u64,
     ) -> UsageEntry {
+        entry_parts_for_source_and_model(timestamp, source, "claude-opus-4-7", input, output)
+    }
+
+    fn entry_parts_for_source_and_model(
+        timestamp: &str,
+        source: UsageSource,
+        model: &str,
+        input: u64,
+        output: u64,
+    ) -> UsageEntry {
         let timestamp_utc = ts(timestamp);
         UsageEntry {
             timestamp_utc,
             source,
-            model: "claude-opus-4-7".to_string(),
+            model: model.to_string(),
             input,
             output,
             cache_read: 0,
@@ -2907,6 +2957,50 @@ mod tests {
         assert_eq!(data.windows.all_time, 1_640);
         assert_eq!(data.windows.all_time_breakdown.input, 1_110);
         assert_eq!(data.windows.all_time_breakdown.output, 530);
+    }
+
+    #[test]
+    fn window_model_usage_exposes_per_model_breakdowns() {
+        let now = ts("2026-04-27T00:30:00Z");
+        let messages = vec![
+            entry_parts_for_source_and_model(
+                "2026-04-27T00:00:00Z",
+                UsageSource::Codex,
+                "gpt-5.5",
+                100,
+                25,
+            ),
+            entry_parts_for_source_and_model(
+                "2026-04-26T00:31:00Z",
+                UsageSource::Claude,
+                "claude-opus-4-7",
+                10,
+                5,
+            ),
+            entry_parts_for_source_and_model(
+                "2026-03-01T00:00:00Z",
+                UsageSource::Claude,
+                "claude-sonnet-4-5",
+                1_000,
+                500,
+            ),
+        ];
+
+        let data = build_usage_data(StatsCache::default(), messages, now);
+
+        assert_eq!(data.window_model_usage.last_24h["gpt-5.5"].input, 100);
+        assert_eq!(
+            data.window_model_usage.last_24h["claude-opus-4-7"].output,
+            5
+        );
+        assert!(!data
+            .window_model_usage
+            .last_30d
+            .contains_key("claude-sonnet-4-5"));
+        assert_eq!(
+            data.window_model_usage.all_time["claude-sonnet-4-5"].input,
+            1_000
+        );
     }
 
     #[test]
@@ -3448,6 +3542,24 @@ mod tests {
         assert!(parsed.port.is_none());
         assert!(!parsed.leaderboard.enabled);
         assert!(parsed.leaderboard.host.is_none());
+    }
+
+    #[test]
+    fn leaderboard_entry_defaults_model_usage_for_existing_json() {
+        let entries: Vec<LeaderboardEntry> = serde_json::from_str(
+            r#"[{
+                "name":"fabio",
+                "last24h":1,
+                "last7d":2,
+                "last30d":3,
+                "allTime":4,
+                "updatedAt":"2026-04-27T00:00:00Z"
+            }]"#,
+        )
+        .unwrap();
+
+        assert!(entries[0].model_usage.last_24h.is_empty());
+        assert!(entries[0].model_usage.all_time.is_empty());
     }
 
     #[test]
